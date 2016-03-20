@@ -6,38 +6,59 @@ import h5py
 
 class PSIModel(object):
 
-    def __init__(self, **kwargs):
-        self.normalize_training_data = False
+    def __init__(self, normalize_labels=False, **kwargs):
+        self.normalize_labels = normalize_labels
         self.load_training_data(**kwargs)
         self.restrict_sample(**kwargs)
         self.configure_features(**kwargs)
         self.reset()
 
-    def load_training_data(self, **extras):
+    def load_training_data(self, training_data='', **extras):
         """Read an HDF5 file with `parameters` a structured ndarray and
-        `spectra` an ndarray.  Convert to an ndarray of labels of shape
-        (ntrain, nlabel) and an ndarray of training spectra of shape (nwave,
-        ntrain).  Optionally subtract off the median label and spectrum.
+        `spectra` an ndarray.  Store these in the `training_labels` and
+        `training_spectra` attributes
         """
         # Need to write this
-        self.training_spectra = np.zeros([nobj, nwave])
-        self.training_labels = np.zeros([nobj, nlabel])
-        self.label_names = []
-        # dlabel = (self.training_labels.T - self.reference_label)
-
-    def labels_from_dict(self, **label_dict):
-        return np.atleast_2d([label_dict[n] for n in self.label_names])
-
-    def get_star_spectrum(**kwargs):
-        """Get an interpolated spectrum at the parameter values (labels)
-        specified as keywords.  These *must* include all elements of
-        ``label_names``.
+        with h5py.File(training_data, "r") as f:
+            self.training_spectra = f['spectra'][:]
+            self.training_labels = f['parameters'][:]
+            self.wavelengths = f['wavelengths'][:]
+        # add and rename labels here
+        self.label_names = self.training_labels.dtype.names
+        self.build_training_info()
+        #self.reset()
+        
+    def build_training_info(self):
+        """Calculate and store quantities about the training set tht will be
+        used to normalize labels and spectra
         """
-        assert True in self.trained
-        labels = self.labels_from_dict(**kwargs)
-        features = self.labels_to_features(labels)
-        spectrum = np.dot(self.coeffs, features.T)
-        return np.squeeze(spectrum)
+        if self.normalize_labels:
+            normlabels = flatten_struct(labels)
+            lo = normlabels.min(axis=0)
+            hi = normlabels.max(axis=0)
+            normlabels = (normlabels - lo) / (hi - lo)
+            self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
+            self.reference_spectrum = self.training_spectra[self.reference_index, :]
+            self.reference_label = flatten_struct(self.training_labels[self.reference_index])
+            self.training_label_range = hi - lo
+        else:
+            self.reference_index = None
+            self.reference_spectrum = 0
+            self.reference_label = 0
+            self.training_label_range = 1.0
+        
+    def normalize(self, labels, **extras):
+        """Normalize labels by by their range in the training set (stored as
+        `label_range`), and subtract the "median" label and spectrum of the
+        training set, which are stored as `reference_label` and
+        `reference_spectrum`.
+
+        To reconstruct absolute labels from a normalized label, use:
+            label = label_range * normed_label + reference_label
+            spectrum = normed_spectrum + reference_spectrum
+        """
+        normlabels = flatten_struct(labels) - self.reference_label
+        return normlabels / self.training_label_range
 
     def configure_features(self, **extras):
         """Here you set up which terms to use.  This is set up to include all
@@ -48,22 +69,22 @@ class PSIModel(object):
         self.qinds = np.array(list(qinds))
         self.features = (self.label_names + list(qnames))
 
-    def labels_to_features(labels):
+    def labels_to_features(self, labels):
         """Construct a feature vector from a label vector.  This is a simple
         quadratic model, and a placeholder.  It should be reimplemented by
         subclasses.
 
         :param labels:
-            Label vector(s).  ndarray of shape (nobj, nlabels)
+            Label vector(s).  structured array 
 
         :returns X:
             Design matrix, ndarray of shape (nobj, nfeatures)
         """
-        linear = labels
+        linear = self.normalize(labels)
         quad = np.einsum('...i,...j->...ij', linear, linear)[:, self.qinds[:, 0], self.qinds[:, 1]]
         return np.hstack([linear, quad])
 
-    def construct_design_matrix(self, bounds=None, order=2):
+    def construct_design_matrix(self, **extras):
         """Construct and store the [Nobj x Nfeatures] design matrix and its
         [Nfeature x Nfeature] inverse square.
         """
@@ -74,6 +95,8 @@ class PSIModel(object):
         """Do the regression for the indicated wavelengths.  This can take a
         pool object with a ``map`` method to enable parallelization.
         """
+        if (self.X is None) or (self.Ainv is None):
+            self.construct_design_matrix()
         if pool is None:
             M = map
         else:
@@ -92,10 +115,11 @@ class PSIModel(object):
         if bounds is None:
             return
         good = np.ones(self.n_train, dtype=bool)
-        for i, b in bounds.items():
-            good = good & within(bound, self.training_labels[i])
+        for name, bound in bounds.items():
+            good = good & within(bound, self.training_labels[name])
         self.training_spectra = self.training_spectra[good, :]
         self.training_labels = self.training_labels[good, ...]
+        self.build_training_info()
         self.reset()
 
     def reset(self):
@@ -106,6 +130,30 @@ class PSIModel(object):
         self.coeffs = np.empty([self.n_wave, self.n_features])
         self.X = None
         self.Ainv = None
+
+    def labels_from_dict(self, **label_dict):
+        """Convert from a dictionary of labels to a numpy structured array
+        """
+        dtype = np.dtype([(n, np.float) for n in self.label_names])
+        try:
+            nl = len(label_dict[self.label_names[0]])
+        except:
+            nl = 1
+        labels = np.zeros(nl, dtype=dtype)
+        for n in self.label_names:
+            labels[n] = label_dict[n]
+        return labels
+
+    def get_star_spectrum(self, **kwargs):
+        """Get an interpolated spectrum at the parameter values (labels)
+        specified as keywords.  These *must* include all elements of
+        ``label_names``.
+        """
+        assert True in self.trained
+        labels = self.labels_from_dict(**kwargs)
+        features = self.labels_to_features(labels)
+        spectrum = np.dot(self.coeffs, features.T)
+        return np.squeeze(spectrum + self.reference_spectrum)
 
     @property
     def n_labels(self):
@@ -121,20 +169,12 @@ class PSIModel(object):
 
     @property
     def n_features(self):
-        return len(self.features) + int(not self.normalize_training_data)
+        return len(self.features) + int(not self.normalize_labels)
+        
 
 
 class MILESInterpolator(PSIModel):
 
-    def labels_from_dict(self, **label_dict):
-        """Convert from a dictionary of labels to a numpy structured array
-        """
-        dtype = np.dtype([(n, np.float) for n in self.label_names])
-        nl = len(label_dict[self.label_names[0]])
-        labels = np.zeros(nl, dtype=dtype)
-        for n in self.label_names:
-            labels[n] = label_dict[n]
-        return labels
 
     def configure_features(self, **extras):
         """Features based on Eq. 3 of Prugniel 2011, where they are called
@@ -174,7 +214,7 @@ class MILESInterpolator(PSIModel):
         """
         # add bias term if you didn't normalize the training data by
         # subtracting a reference spectrum.
-        if self.normalize_training_data:
+        if self.normalize_labels:
             X = []
         else:
             X = [np.ones(len(labels))]
@@ -193,12 +233,13 @@ class MILESInterpolator(PSIModel):
         with h5py.File(training_data, "r") as f:
             self.training_spectra = f['spectra'][:]
             self.training_labels = f['parameters'][:]
+            self.wavelengths = f['wavelengths'][:]
         # add and rename labels here
-        newfields = ['logt']
-        newdata = [np.log10(self.training_labels['teff'])]
+        newfield = 'logt'
+        newdata = np.log10(self.training_labels['teff'])
         self.training_labels = rfn.append_fields(self.training_labels,
-                                                 newfields, newdata)
-        self.reset()
+                                                 newfield, newdata, usemask=False)
+        #self.reset()
 
     @property
     def label_names(self):
@@ -216,6 +257,12 @@ class function_wrapper(object):
         return self.function(*args, **self.kwargs)
 
 
+def flatten_struct(struct):
+    """This is slow, should be replaced with a view-based method.
+    """
+    return np.array(struct.tolist())
+    
+    
 def within(bound, value):
     return (value < bound[1]) & (value > bound[0])
 
