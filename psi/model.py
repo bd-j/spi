@@ -33,7 +33,7 @@ class PSIModel(object):
         used to normalize labels and spectra
         """
         if self.normalize_labels:
-            normlabels = flatten_struct(labels)
+            normlabels = flatten_struct(self.training_labels)
             lo = normlabels.min(axis=0)
             hi = normlabels.max(axis=0)
             normlabels = (normlabels - lo) / (hi - lo)
@@ -109,7 +109,8 @@ class PSIModel(object):
     def train_one_wave(self, ind_wave):
         """Do the regression for one wavelength.
         """
-        return np.dot(self.Ainv, np.dot(self.X.T, self.training_spectra[:, ind_wave]))
+        spec = self.training_spectra[:, ind_wave] - self.reference_spectrum[ind_wave]
+        return np.dot(self.Ainv, np.dot(self.X.T, spec))
 
     def restrict_sample(self, bounds=None, **extras):
         if bounds is None:
@@ -153,7 +154,7 @@ class PSIModel(object):
         labels = self.labels_from_dict(**kwargs)
         features = self.labels_to_features(labels)
         spectrum = np.dot(self.coeffs, features.T)
-        return np.squeeze(spectrum + self.reference_spectrum)
+        return np.squeeze(spectrum.T + self.reference_spectrum)
 
     @property
     def n_labels(self):
@@ -172,9 +173,14 @@ class PSIModel(object):
         return len(self.features) + int(not self.normalize_labels)
         
 
-
 class MILESInterpolator(PSIModel):
 
+
+    def normalize(self, label):
+        nlabel = label.copy()
+        for i, n in enumerate(self.label_names):
+            nlabel[n] = (nlabel[n] - self.reference_label[i]) / self.training_label_range[i]
+        return nlabel
 
     def configure_features(self, **extras):
         """Features based on Eq. 3 of Prugniel 2011, where they are called
@@ -213,13 +219,14 @@ class MILESInterpolator(PSIModel):
             Design matrix, ndarray of shape (nobj, nfeatures)
         """
         # add bias term if you didn't normalize the training data by
-        # subtracting a reference spectrum.
         if self.normalize_labels:
             X = []
+            nlabels = self.normalize(labels)
         else:
             X = [np.ones(len(labels))]
+            nlabels = labels
         for feature in self.features:
-            X.append(np.product(np.array([labels[lname]
+            X.append(np.product(np.array([nlabels[lname]
                                           for lname in feature]), axis=0))
         return np.array(X).T
 
@@ -239,6 +246,7 @@ class MILESInterpolator(PSIModel):
         newdata = np.log10(self.training_labels['teff'])
         self.training_labels = rfn.append_fields(self.training_labels,
                                                  newfield, newdata, usemask=False)
+        # self.training_spectra /= self.training_spectra.mean(axis=1)[:,None]
         #self.reset()
 
     @property
@@ -246,6 +254,18 @@ class MILESInterpolator(PSIModel):
         return self.training_labels.dtype.names
 
 
+class TGM(object):
+    """Just try the coefficients from Prugniel
+    """
+    def __init__(self, interpolator='miles_tgm.fits', trange='warm'):
+        extension = {'warm': 0, 'hot':1, 'cold': 2}
+        self.trange = trange
+        self.coeffs, hdr = pyfits.getdata(interpolator, ext=extension[trange],
+                                          header=True)
+
+    def labels_to_features(**labels):
+        pass
+    
 class function_wrapper(object):
     """A hack to make a function pickleable for MPI.
     """

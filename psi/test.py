@@ -1,10 +1,11 @@
 import numpy as np
+import matplotlib.pyplot as pl
 from model import MILESInterpolator
 
 mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
 fgk_bounds = {'teff': (4000.0, 9000.0)}
 
-fgk = MILESInterpolator(training_data=mlib, normalize_labels=False)
+fgk = MILESInterpolator(training_data=mlib, normalize_labels=True)
 fgk.restrict_sample(bounds=fgk_bounds)
 fgk.train()
 
@@ -17,4 +18,8 @@ for i in range(fgk.n_train):
 
 delta = predicted - fgk.training_spectra
 
-fdelta = delta / fgk.training_spectra
+for ind in [0, 300]:
+    fig, axes = pl.subplots()
+    axes.plot(fgk.wavelengths, fgk.training_spectra[ind,:])
+    axes.plot(fgk.wavelengths, predicted[ind,:])
+    fig.show()
