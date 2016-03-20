@@ -12,7 +12,7 @@ class PSIModel(object):
         self.restrict_sample(**kwargs)
         self.configure_features(**kwargs)
         self.reset()
-        
+
     def load_training_data(self, **extras):
         """Read an HDF5 file with `parameters` a structured ndarray and
         `spectra` an ndarray.  Convert to an ndarray of labels of shape
@@ -23,11 +23,11 @@ class PSIModel(object):
         self.training_spectra = np.zeros([nobj, nwave])
         self.training_labels = np.zeros([nobj, nlabel])
         self.label_names = []
-        dlabel = (self.training_labels.T - self.reference_label)
-        
+        # dlabel = (self.training_labels.T - self.reference_label)
+
     def labels_from_dict(self, **label_dict):
         return np.atleast_2d([label_dict[n] for n in self.label_names])
-        
+
     def get_star_spectrum(**kwargs):
         """Get an interpolated spectrum at the parameter values (labels)
         specified as keywords.  These *must* include all elements of
@@ -35,17 +35,18 @@ class PSIModel(object):
         """
         assert True in self.trained
         labels = self.labels_from_dict(**kwargs)
-        feature = self.labels_to_features(labels)
-        spectrum = np.dot(self.coeffs, feature.T)
+        features = self.labels_to_features(labels)
+        spectrum = np.dot(self.coeffs, features.T)
         return np.squeeze(spectrum)
 
     def configure_features(self, **extras):
         """Here you set up which terms to use.  This is set up to include all
-        linear and quadratic (cross) terms.  """
-        inds = combinations_with_replacement(range(self.n_labels), r=2)
-        self.inds = np.array(list(inds))
-        self.features = (self.label_names +
-                         list(combinations_with_replacement(self.label_names, r=2)))
+        linear and quadratic (cross) terms.
+        """
+        qinds = combinations_with_replacement(range(self.n_labels), r=2)
+        qnames = combinations_with_replacement(self.label_names, r=2)
+        self.qinds = np.array(list(qinds))
+        self.features = (self.label_names + list(qnames))
 
     def labels_to_features(labels):
         """Construct a feature vector from a label vector.  This is a simple
@@ -57,14 +58,15 @@ class PSIModel(object):
 
         :returns X:
             Design matrix, ndarray of shape (nobj, nfeatures)
-        """        
-        quad = np.einsum('...i,...j->...ij', labels, labels)[:, self.inds[:, 0], self.inds[:,1]]
-        return np.hstack([labels, quad])
+        """
+        linear = labels
+        quad = np.einsum('...i,...j->...ij', linear, linear)[:, self.qinds[:, 0], self.qinds[:, 1]]
+        return np.hstack([linear, quad])
 
     def construct_design_matrix(self, bounds=None, order=2):
-        """Construct and store the [Nobj x Nfeatures] design matrix and the
-        precision matrix.
-        """        
+        """Construct and store the [Nobj x Nfeatures] design matrix and its
+        [Nfeature x Nfeature] inverse square.
+        """
         self.X = self.labels_to_features(self.training_labels)
         self.Ainv = inv(np.dot(self.X.T, self.X))
 
@@ -104,11 +106,11 @@ class PSIModel(object):
         self.coeffs = np.empty([self.n_wave, self.n_features])
         self.X = None
         self.Ainv = None
-        
+
     @property
     def n_labels(self):
         return len(self.label_names)
-        
+
     @property
     def n_train(self):
         return self.training_spectra.shape[0]
@@ -127,7 +129,7 @@ class MILESInterpolator(PSIModel):
     def labels_from_dict(self, **label_dict):
         """Convert from a dictionary of labels to a numpy structured array
         """
-        dtype=np.dtype([(n, np.float) for n in self.label_names])
+        dtype = np.dtype([(n, np.float) for n in self.label_names])
         nl = len(label_dict[self.label_names[0]])
         labels = np.zeros(nl, dtype=dtype)
         for n in self.label_names:
@@ -157,10 +159,11 @@ class MILESInterpolator(PSIModel):
         self.features = features
 
     def labels_to_features(self, labels):
-        """Construct a feature vector from a label structure. This uses features
-        that are named by hand, and specified in the ``features`` attribute as
-        a tuple of lists.  This method is slower than the ``einsum`` based method,
-        but allows for more flexibility and interpretability.
+        """Construct a feature vector from a label structure. This uses
+        features that are named by hand, and specified in the ``features``
+        attribute as a tuple of lists.  This method is slower than the
+        ``einsum`` based method, but allows for more flexibility and
+        interpretability.
 
         :param labels:
             Label vector(s).  Structured array of length nobj, with nlabels
@@ -176,7 +179,8 @@ class MILESInterpolator(PSIModel):
         else:
             X = [np.ones(len(labels))]
         for feature in self.features:
-            X.append(np.product(np.array([labels[lname] for lname in feature]), axis=0))
+            X.append(np.product(np.array([labels[lname]
+                                          for lname in feature]), axis=0))
         return np.array(X).T
 
     def load_training_data(self, training_data='', **extras):
@@ -195,7 +199,7 @@ class MILESInterpolator(PSIModel):
         self.training_labels = rfn.append_fields(self.training_labels,
                                                  newfields, newdata)
         self.reset()
-                    
+
     @property
     def label_names(self):
         return self.training_labels.dtype.names
@@ -212,7 +216,6 @@ class function_wrapper(object):
         return self.function(*args, **self.kwargs)
 
 
-        
 def within(bound, value):
     return (value < bound[1]) & (value > bound[0])
 
