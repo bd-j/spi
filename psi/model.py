@@ -2,6 +2,7 @@ import numpy as np
 from numpy.lib import recfunctions as rfn
 from numpy.linalg import inv
 import h5py
+import astropy.io.fits as pyfits
 
 
 class PSIModel(object):
@@ -43,11 +44,22 @@ class PSIModel(object):
             self.training_label_range = hi - lo
         else:
             self.reference_index = None
-            self.reference_spectrum = 0
-            self.reference_label = 0
+            self.reference_spectrum = np.zeros(self.n_wave)
+            self.reference_label = np.zeros(self.n_labels)
             self.training_label_range = 1.0
         
-    def normalize(self, labels, **extras):
+    def restrict_sample(self, bounds=None, **extras):
+        if bounds is None:
+            return
+        good = np.ones(self.n_train, dtype=bool)
+        for name, bound in bounds.items():
+            good = good & within(bound, self.training_labels[name])
+        self.training_spectra = self.training_spectra[good, :]
+        self.training_labels = self.training_labels[good, ...]
+        self.build_training_info()
+        self.reset()
+
+    def rescale(self, labels, **extras):
         """Normalize labels by by their range in the training set (stored as
         `label_range`), and subtract the "median" label and spectrum of the
         training set, which are stored as `reference_label` and
@@ -80,7 +92,7 @@ class PSIModel(object):
         :returns X:
             Design matrix, ndarray of shape (nobj, nfeatures)
         """
-        linear = self.normalize(labels)
+        linear = self.rescale(labels)
         quad = np.einsum('...i,...j->...ij', linear, linear)[:, self.qinds[:, 0], self.qinds[:, 1]]
         return np.hstack([linear, quad])
 
@@ -112,17 +124,6 @@ class PSIModel(object):
         spec = self.training_spectra[:, ind_wave] - self.reference_spectrum[ind_wave]
         return np.dot(self.Ainv, np.dot(self.X.T, spec))
 
-    def restrict_sample(self, bounds=None, **extras):
-        if bounds is None:
-            return
-        good = np.ones(self.n_train, dtype=bool)
-        for name, bound in bounds.items():
-            good = good & within(bound, self.training_labels[name])
-        self.training_spectra = self.training_spectra[good, :]
-        self.training_labels = self.training_labels[good, ...]
-        self.build_training_info()
-        self.reset()
-
     def reset(self):
         """Zero out everything in case the training data or features changed.
         """
@@ -135,20 +136,19 @@ class PSIModel(object):
     def labels_from_dict(self, **label_dict):
         """Convert from a dictionary of labels to a numpy structured array
         """
-        dtype = np.dtype([(n, np.float) for n in self.label_names])
+        dtype = np.dtype([(n, np.float) for n in label_dict.keys()])
         try:
-            nl = len(label_dict[self.label_names[0]])
+            nl = len(label_dict[label_dict.keys()[0]])
         except:
             nl = 1
         labels = np.zeros(nl, dtype=dtype)
-        for n in self.label_names:
+        for n in label_dict.keys():
             labels[n] = label_dict[n]
         return labels
 
     def get_star_spectrum(self, **kwargs):
         """Get an interpolated spectrum at the parameter values (labels)
-        specified as keywords.  These *must* include all elements of
-        ``label_names``.
+        specified as keywords.
         """
         assert True in self.trained
         labels = self.labels_from_dict(**kwargs)
@@ -176,31 +176,38 @@ class PSIModel(object):
 class MILESInterpolator(PSIModel):
 
 
-    def normalize(self, label):
+    def rescale(self, label):
         nlabel = label.copy()
-        for i, n in enumerate(self.label_names):
-            nlabel[n] = (nlabel[n] - self.reference_label[i]) / self.training_label_range[i]
+        nlabel['logt'] -= 3.7617
+        nlabel['logg'] -= 4.44
         return nlabel
-
+    
     def configure_features(self, **extras):
         """Features based on Eq. 3 of Prugniel 2011, where they are called
         "developments".
         """
         features = (['logt'], ['feh'],
                     ['logg'], ['logt', 'logt'],
-                    ['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
-                    ['logt', 'feh'], ['logt', 'logg'],
-                    ['logt', 'logt', 'logg'],
-                    ['logt', 'logt', 'feh'],
-                    ['logg', 'logg'], ['feh', 'feh'],
-                    ['logt', 'logt', 'logt', 'logt', 'logt'],
-                    ['logt', 'logg', 'logg'],
-                    ['logg', 'logg', 'logg'], ['feh', 'feh'],
-                    ['logt', 'feh', 'feh'],
-                    ['logg', 'feh'],
-                    ['logg', 'logg', 'feh'],
-                    ['logg', 'feh', 'feh'],
-                    ['teff'], ['teff', 'teff']
+                    #['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
+                    #['logt', 'feh'], ['logt', 'logg'],
+                    #['logt', 'logt', 'logg'],
+                    #['logt', 'logt', 'feh'],
+                    #['logg', 'logg'], ['feh', 'feh'],
+                    #['logt', 'logt', 'logt', 'logt', 'logt'],
+                    #['logt', 'logg', 'logg'],
+                    #['logg', 'logg', 'logg'],
+                    #['feh', 'feh'],
+                    #['logt', 'feh', 'feh'],
+                    #['logg', 'feh'],
+                    #['logg', 'logg', 'feh'],
+                    #['logg', 'feh', 'feh'],
+                    #['teff'], ['teff', 'teff']
+                    # The following features are directly from the ulyss code for v3 miles:
+                    #['logt', 'logt', 'logt', 'logg'],
+                    #['logt', 'logt', 'logt', 'logt', 'logg'],
+                    #['logt', 'logt', 'logt', 'feh'],
+                    #['logt', 'logt', 'logg', 'logg'],
+                    #['logt', 'logt', 'logg', 'logg', 'logg']
                     )
         self.features = features
 
@@ -218,15 +225,11 @@ class MILESInterpolator(PSIModel):
         :returns X:
             Design matrix, ndarray of shape (nobj, nfeatures)
         """
+        slabels = self.rescale(labels)
         # add bias term if you didn't normalize the training data by
-        if self.normalize_labels:
-            X = []
-            nlabels = self.normalize(labels)
-        else:
-            X = [np.ones(len(labels))]
-            nlabels = labels
+        X = [np.ones(len(slabels))]
         for feature in self.features:
-            X.append(np.product(np.array([nlabels[lname]
+            X.append(np.product(np.array([slabels[lname]
                                           for lname in feature]), axis=0))
         return np.array(X).T
 
@@ -260,12 +263,44 @@ class TGM(object):
     def __init__(self, interpolator='miles_tgm.fits', trange='warm'):
         extension = {'warm': 0, 'hot':1, 'cold': 2}
         self.trange = trange
-        self.coeffs, hdr = pyfits.getdata(interpolator, ext=extension[trange],
-                                          header=True)
+        coeffs, hdr = pyfits.getdata(interpolator, ext=extension[trange],
+                                     header=True)
+        self.coeffs = coeffs.T
+        self.version = int(hdr['intrp_v'])
 
-    def labels_to_features(**labels):
-        pass
-    
+        w = (np.arange(coeffs.shape[1]) - (hdr['CRPIX1']-1)) * hdr['CDELT1'] + hdr['CRVAL1']
+        self.wavelengths = w
+        self.n_wave = len(self.wavelengths)
+        
+    def labels_to_features(self, logt=3.7617, logg=4.44, feh=0, **extras):
+        logt_n = logt - 3.7617
+        grav = logg - 4.44
+        tt = logt_n / 0.2  # why?
+        tt2 = tt**2 - 1.  # why? Chebyshev.
+        # first 20 terms
+        features = [1., tt, feh, grav, tt**2, tt*tt2, tt2*tt2, tt*feh, tt*grav,
+                    tt2*grav, tt2*feh, grav**2, feh**2, tt*tt2**2, tt*grav**2, grav**3, feh**3,
+                    tt*feh**2, grav*feh, grav**2*feh, grav*feh**2]
+        if self.version == 2:
+            features += [np.exp(tt) - 1. - tt*(1. + tt/2. + tt**2/6. + tt**3/24. + tt**4/120.),
+                         np.exp(tt*2) - 1. - 2.*tt*(1. + tt + 2./3.*tt**2 + tt**3/3. + tt**4*2./15.)
+                         ]
+        elif self.version == 3:
+            features += [tt*tt2*grav, tt2*tt2*grav, tt2*tt*feh, tt2*grav**2, tt2*grav**3]
+
+        X = np.array(features)
+        return X.T
+
+    def get_star_spectrum(self, **kwargs):
+        """Get an interpolated spectrum at the parameter values (labels)
+        specified as keywords.  These *must* include all elements of
+        ``label_names``.
+        """
+        features = self.labels_to_features(**kwargs)
+        spectrum = np.dot(self.coeffs, features.T)
+        return np.squeeze(spectrum.T)
+
+
 class function_wrapper(object):
     """A hack to make a function pickleable for MPI.
     """
