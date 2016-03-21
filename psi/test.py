@@ -29,19 +29,26 @@ for i in range(psi.n_train):
 
 # The tgm wavelength scale extends slightly blueward and redward of the
 # released MILES data
-ratio = predicted_tgm[:,5:-1] / fgk.training_spectra
+ratio = predicted_tgm[:,5:-1] / psi.training_spectra
+
+
 
 # Plot for a couple stars
+props = dict(boxstyle='round', facecolor='w', alpha=0.5)
 for ind in [10, 100]:
-    train = fgk.training_labels[ind]
-    labels = dict([(n, train[n]) for n in fgk.label_names])
+    train = psi.training_labels[ind]
+    labels = dict([(n, train[n]) for n in psi.label_names])
+    title = "T={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.1f}".format(**labels)
     fig, axes = pl.subplots()
-    axes.plot(psi.wavelengths, fgk.training_spectra[ind,:], label='MILES spectrum')
+    axes.plot(psi.wavelengths, psi.training_spectra[ind,:], label='MILES spectrum')
     axes.plot(tgm.wavelengths, predicted_tgm[ind,:], label='TGM v{}'.format(tgm.version))
     axes.plot(psi.wavelengths, predicted_psi[ind,:], label='GPSI')
-    axes.set_title("T={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.1f}".format(**labels))
+    axes.text(0.05, 0.95, title, transform=axes.transAxes, fontsize=14,
+              verticalalignment='top')
+    axes.set_title('MILES #{}'.format(ind+1))
     axes.legend(loc=0)
     fig.show()
+    fig.savefig('figures/prediction_miles{:04.0f}'.format(ind+1))
 
 # plot for one wavelength
 fig, axes = pl.subplots()

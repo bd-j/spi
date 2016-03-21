@@ -4,6 +4,8 @@ from numpy.linalg import inv
 import h5py
 import astropy.io.fits as pyfits
 
+__all__ = ["PSIModel", "MILESInterpolator", "TGM"]
+
 
 class PSIModel(object):
 
