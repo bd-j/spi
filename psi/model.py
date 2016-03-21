@@ -50,6 +50,15 @@ class PSIModel(object):
             self.reference_label = np.zeros(self.n_labels)
             self.training_label_range = 1.0
         
+    def reset(self):
+        """Zero out everything in case the training data or features changed.
+        """
+        # We reloaded the training data, so we should zero out the trained flag
+        self.trained = np.zeros(self.n_wave, dtype=bool)
+        self.coeffs = np.empty([self.n_wave, self.n_features])
+        self.X = None
+        self.Ainv = None
+
     def restrict_sample(self, bounds=None, **extras):
         if bounds is None:
             return
@@ -58,6 +67,19 @@ class PSIModel(object):
             good = good & within(bound, self.training_labels[name])
         self.training_spectra = self.training_spectra[good, :]
         self.training_labels = self.training_labels[good, ...]
+        self.build_training_info()
+        self.reset()
+
+    def leave_out(self, inds):
+        """Remove training objects specified by `inds`.  Useful for
+        leave-one-out validation.
+
+        :param inds:
+            Int, array of ints, or slice specifying which training objects to
+            remove.  Passed to numpy.delete
+        """
+        self.training_spectra = np.delete(self.training_spectra, inds, axis=0)
+        self.training_labels = np.delete(self.training_labels, inds)
         self.build_training_info()
         self.reset()
 
@@ -125,15 +147,6 @@ class PSIModel(object):
         """
         spec = self.training_spectra[:, ind_wave] - self.reference_spectrum[ind_wave]
         return np.dot(self.Ainv, np.dot(self.X.T, spec))
-
-    def reset(self):
-        """Zero out everything in case the training data or features changed.
-        """
-        # We reloaded the training data, so we should zero out the trained flag
-        self.trained = np.zeros(self.n_wave, dtype=bool)
-        self.coeffs = np.empty([self.n_wave, self.n_features])
-        self.X = None
-        self.Ainv = None
 
     def labels_from_dict(self, **label_dict):
         """Convert from a dictionary of labels to a numpy structured array
