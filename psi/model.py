@@ -269,7 +269,8 @@ class MILESInterpolator(PSIModel):
 
     @property
     def label_names(self):
-        return self.training_labels.dtype.names
+        used_labels = np.unique([n for f in self.features for n in f])
+        return tuple(used_labels)
 
 
 class TGM(object):

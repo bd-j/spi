@@ -3,11 +3,10 @@ import numpy as np
 import matplotlib.pyplot as pl
 from model import MILESInterpolator
 
-#def loo(i)
-
+    
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
-fgk_bounds = {'teff': (4000.0, 6000.0)}
+fgk_bounds = {'teff': (4000.0, 9000.0)}
 psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 psi.restrict_sample(bounds=fgk_bounds)
 
@@ -20,9 +19,9 @@ for i in range(ntrain):
     psi.restrict_sample(bounds=fgk_bounds)
     psi.features = (['logt'], ['feh'], ['logg'],
                     ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
-                    ['logt', 'feh'], ['logt', 'logt', 'logt'])
-                    #['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
-                    #['logt', 'feh'], ['logt', 'logg'],
+                    ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
+                    ['logt', 'logt', 'logt'])
+                    #['logt', 'logt', 'logt', 'logt'],
                     #['logt', 'logt', 'logg'],
 
     spec= psi.training_spectra[i,:]
@@ -49,9 +48,9 @@ sax.set_xlabel('$\lambda (\AA)$')
 sax.set_ylabel('Fractional RMS (%)')
 sax.set_ylim(0, 100)
 sfig.show()
+sfig.savefig('figures/residual_spectrum.pdf')
 
 # Plot a map of total variance as a function of label
-
 l1name, l2name = 'logt', 'feh'
 l1 = psi.training_labels[l1name]
 l2 = psi.training_labels[l2name]
@@ -60,5 +59,19 @@ cm = pl.cm.get_cmap('gnuplot2_r')
 sc = mapax.scatter(l1, l2, marker='o', c=np.sqrt(var_total)*100)
 mapax.set_xlabel(l1name)
 mapax.set_ylabel(l2name)
-pl.colorbar(sc)
+cbar = pl.colorbar(sc)
+cbar.ax.set_ylabel('Fractional RMS (%)')
 mapfig.show()                   
+mapfig.savefig('figures/residual_map.pdf')
+
+# Plot cumulative number as a function of RMS
+rms = np.sqrt(var_total)*100
+rms[~np.isfinite(rms)]=1000
+oo = np.argsort(rms)
+cfig, cax = pl.subplots()
+cax.plot(rms[oo], np.arange(len(oo)))
+cax.set_ylabel('N(<RMS)')
+cax.set_xlabel('Fractional RMS (%)')
+cax.set_xlim(0,100)
+cfig.show()
+cfig.savefig('figures/cumlative_rms.pdf')
