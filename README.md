@@ -5,11 +5,11 @@ Doing the basic regression thing.
 
 
 ```python
-	from psi.model import MILESInterpolator as MILES
+	from model import MILESInterpolator as MILES
 	psi = MILES(training_data='miles_prugniel.h5', normalize_labels=False)
 	# Only train on warm stars
 	psi.restrict_sample({'teff':(4000.0, 9000.0)})
-	# Choose polynomial features to train on
+	# Choose polynomial features to train on, here linear terms + logt^2
 	psi.features = (['logt'], ['feh'], ['logg'], ['logt', 'logt'])
 	psi.train()
 
