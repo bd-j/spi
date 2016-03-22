@@ -37,9 +37,11 @@ psi.load_training_data(training_data=mlib)
 psi.restrict_sample(bounds=fgk_bounds)
 
 # get fractional residuals
+imin = np.argmin(np.abs(psi.wavelengths - 3800))
+imax = np.argmin(np.abs(psi.wavelengths - 7400))
 delta = predicted/psi.training_spectra - 1.0
 var_spectrum = delta.var(axis=0)
-var_total = delta[:, 10:-10].var(axis=1)
+var_total = delta[:, imin:imax].var(axis=1)
 
 # Plot the variance spectrum
 sfig, sax = pl.subplots()
