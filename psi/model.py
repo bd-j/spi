@@ -21,7 +21,6 @@ class PSIModel(object):
         `spectra` an ndarray.  Store these in the `training_labels` and
         `training_spectra` attributes
         """
-        # Need to write this
         with h5py.File(training_data, "r") as f:
             self.training_spectra = f['spectra'][:]
             self.training_labels = f['parameters'][:]
@@ -29,6 +28,7 @@ class PSIModel(object):
         # add and rename labels here
         self.label_names = self.training_labels.dtype.names
         self.build_training_info()
+        self.has_errors = False
         #self.reset()
         
     def build_training_info(self):
@@ -42,7 +42,7 @@ class PSIModel(object):
             normlabels = (normlabels - lo) / (hi - lo)
             self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
             self.reference_spectrum = self.training_spectra[self.reference_index, :]
-            self.reference_label = flatten_struct(self.training_labels[self.reference_index])
+            self.reference_label = self.training_labels[self.reference_index]
             self.training_label_range = hi - lo
         else:
             self.reference_index = None
@@ -93,7 +93,7 @@ class PSIModel(object):
             label = label_range * normed_label + reference_label
             spectrum = normed_spectrum + reference_spectrum
         """
-        normlabels = flatten_struct(labels) - self.reference_label
+        normlabels = flatten_struct(labels) - flatten_struct(self.reference_label)
         return normlabels / self.training_label_range
 
     def configure_features(self, **extras):
@@ -146,8 +146,22 @@ class PSIModel(object):
         """Do the regression for one wavelength.
         """
         spec = self.training_spectra[:, ind_wave] - self.reference_spectrum[ind_wave]
+        if (not self.has_errors) or (self.force_ordinary):
+            return self.ordinary(spec)
+        else:
+            weights = self.training_weights[:, ind_wave]
+            return self.weighted(spec, weights)
+        
+    def ordinary(self, spec):
         return np.dot(self.Ainv, np.dot(self.X.T, spec))
 
+    def weighted(self, spec, weights):
+        """Should use woodbury matrix lemma here to update self.Ainv
+        """
+        Xp = np.dot(weights, self.X)
+        Ainv = inv(np.dot(Xp.T, Xp))
+        return np.dot(Ainv, np.dot(Xp.T, spec * weights))
+                
     def labels_from_dict(self, **label_dict):
         """Convert from a dictionary of labels to a numpy structured array
         """
@@ -255,6 +269,7 @@ class MILESInterpolator(PSIModel):
         spectra of shape (nwave, ntrain).  Optionally subtract off the median
         label and spectrum.
         """
+        self.has_errors = False
         with h5py.File(training_data, "r") as f:
             self.training_spectra = f['spectra'][:]
             self.training_labels = f['parameters'][:]
@@ -317,6 +332,16 @@ class TGM(object):
         return np.squeeze(spectrum.T)
 
 
+def flatten_struct(struct):
+    """This is slow, should be replaced with a view-based method.
+    """
+    return np.array(struct.tolist())
+    
+    
+def within(bound, value):
+    return (value < bound[1]) & (value > bound[0])
+
+
 class function_wrapper(object):
     """A hack to make a function pickleable for MPI.
     """
@@ -326,16 +351,6 @@ class function_wrapper(object):
 
     def __call__(self, args):
         return self.function(*args, **self.kwargs)
-
-
-def flatten_struct(struct):
-    """This is slow, should be replaced with a view-based method.
-    """
-    return np.array(struct.tolist())
-    
-    
-def within(bound, value):
-    return (value < bound[1]) & (value > bound[0])
 
 
 if __name__ == "__main__":

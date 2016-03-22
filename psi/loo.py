@@ -29,7 +29,7 @@ for i in range(ntrain):
     labels = dict([(n, tlabels[n]) for n in psi.label_names])
     psi.leave_out(i)
     psi.train()
-    print(psi.coeffs)
+    #print(psi.coeffs)
     predicted[i, :] = psi.get_star_spectrum(**labels)
 
 # reload the full training set
