@@ -11,6 +11,7 @@ miles = h5py.File('../miles/miles_prugniel.h5', "r")
 
 for i, n in enumerate(names):
     dat, hdr = pyfits.getdata(files[i], header=True)
+    miles_id = hdr['miles_id']
     spectra[i, :] = dat['flux']
     uncertainty[i, :] = dat['uncertainty']
     parameters[i] = miles['parameters'][miles_id - 1]

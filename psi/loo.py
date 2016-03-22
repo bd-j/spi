@@ -2,21 +2,32 @@ import sys
 import numpy as np
 import matplotlib.pyplot as pl
 from model import MILESInterpolator
+from badstar import allbadstars
 
-    
+def select(psi, mlib, bad_ids, bounds):
+    """Select a training set using bounds and removing bad stars listed by miles_id
+    """
+    psi.load_training_data(training_data=mlib)
+    ind = [psi.training_labels['miles_id'].tolist().index(b) for b in bad_ids
+           if b in psi.training_labels['miles_id']]
+    psi.leave_out(ind)
+    psi.restrict_sample(bounds=bounds)
+    return psi
+
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
 fgk_bounds = {'teff': (4000.0, 9000.0)}
 psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
-psi.restrict_sample(bounds=fgk_bounds)
+badstar_ids = allbadstars
+psi = select(psi, mlib, badstar_ids, fgk_bounds)
 
 ntrain = psi.n_train
 predicted = np.zeros([ntrain, psi.n_wave])
 
 # Retrain and predict after leaving one out
 for i in range(ntrain):
-    psi.load_training_data(training_data=mlib)
-    psi.restrict_sample(bounds=fgk_bounds)
+    if (i % 10) == 0: print(i)
+    psi = select(psi, mlib, badstar_ids, fgk_bounds)
     psi.features = (['logt'], ['feh'], ['logg'],
                     ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
                     ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
@@ -24,7 +35,7 @@ for i in range(ntrain):
                     #['logt', 'logt', 'logt', 'logt'],
                     #['logt', 'logt', 'logg'],
 
-    spec= psi.training_spectra[i,:]
+    spec = psi.training_spectra[i,:]
     tlabels = psi.training_labels[i]
     labels = dict([(n, tlabels[n]) for n in psi.label_names])
     psi.leave_out(i)
@@ -33,8 +44,7 @@ for i in range(ntrain):
     predicted[i, :] = psi.get_star_spectrum(**labels)
 
 # reload the full training set
-psi.load_training_data(training_data=mlib)
-psi.restrict_sample(bounds=fgk_bounds)
+psi = select(psi, mlib, badstar_ids, fgk_bounds)
 
 # get fractional residuals
 imin = np.argmin(np.abs(psi.wavelengths - 3800))
@@ -77,3 +87,18 @@ cax.set_xlabel('Fractional RMS (%)')
 cax.set_xlim(0,100)
 cfig.show()
 cfig.savefig('figures/cumlative_rms.pdf')
+
+sys.exit()
+# compute covariance matrix
+dd = delta[:, imin:imax]
+dd[~np.isfinite(dd)] = 0.0
+cvmat = np.cov(dd.T)
+
+lines = {'Ha':6563., 'NaI_5897': 5897.0}
+ind = []
+for l, w in lines.items():
+    ind.append(np.argmin(np.abs(psi.wavelengths - w)))
+
+i=0
+plot(psi.wavelengths[imin:imax], cvmat[ind[i]-imin,:], label=lines.keys()[i])
+     

@@ -274,12 +274,19 @@ class MILESInterpolator(PSIModel):
             self.training_spectra = f['spectra'][:]
             self.training_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
-        # add and rename labels here
-        newfield = 'logt'
-        newdata = np.log10(self.training_labels['teff'])
+            try:
+                self.training_weights = 1/(f['uncertainty'][:]**2)
+                self.has_errors = True
+            except:
+                pass
+            ancillary = f['ancillary'][:]
+        # add and rename labels here.  Note that not all labels need or will be
+        # used in the feature generation
+        newfield = ['logt', 'miles_id']
+        newdata = [np.log10(self.training_labels['teff']), ancillary['miles_id']]
         self.training_labels = rfn.append_fields(self.training_labels,
                                                  newfield, newdata, usemask=False)
-        # self.training_spectra /= self.training_spectra.mean(axis=1)[:,None]
+        #self.training_spectra -= self.training_spectra.mean(axis=1)[:,None]
         #self.reset()
 
     @property
@@ -332,11 +339,33 @@ class TGM(object):
         return np.squeeze(spectrum.T)
 
 
-def flatten_struct(struct):
+def flatten_struct(struct, use_labels=None):
     """This is slow, should be replaced with a view-based method.
     """
-    return np.array(struct.tolist())
+    if use_labels is None:
+        return np.array(struct.tolist())
+    else:
+        return np.array([struct[n] for n in use_labels])
+
+def dict_struct(struct):
+    """Convert from a structured array to a dictionary.  This shouldn't really
+    be necessary.
+    """
+    return dict([(n, struct[n]) for n in struct.dtype.names])
     
+def make_struct(**label_dict):
+        """Convert from a dictionary of labels to a numpy structured array
+        """
+        dtype = np.dtype([(n, np.float) for n in label_dict.keys()])
+        try:
+            nl = len(label_dict[label_dict.keys()[0]])
+        except:
+            nl = 1
+        labels = np.zeros(nl, dtype=dtype)
+        for n in label_dict.keys():
+            labels[n] = label_dict[n]
+        return labels
+ 
     
 def within(bound, value):
     return (value < bound[1]) & (value > bound[0])
