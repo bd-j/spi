@@ -145,11 +145,11 @@ class PSIModel(object):
     def train_one_wave(self, ind_wave):
         """Do the regression for one wavelength.
         """
-        spec = self.training_spectra[:, ind_wave] - self.reference_spectrum[ind_wave]
+        spec = self.training_spectra[:, ind_wave] / self.reference_spectrum[ind_wave]
         if (not self.has_errors) or (self.force_ordinary):
             return self.ordinary(spec)
         else:
-            weights = self.training_weights[:, ind_wave]
+            weights = self.training_weights[:, ind_wave] * self.reference_spectrum[ind_wave]**2
             return self.weighted(spec, weights)
         
     def ordinary(self, spec):
@@ -183,7 +183,7 @@ class PSIModel(object):
         labels = self.labels_from_dict(**kwargs)
         features = self.labels_to_features(labels)
         spectrum = np.dot(self.coeffs, features.T)
-        return np.squeeze(spectrum.T + self.reference_spectrum)
+        return np.squeeze(spectrum.T * self.reference_spectrum)
 
     @property
     def n_labels(self):
@@ -286,14 +286,25 @@ class MILESInterpolator(PSIModel):
         newdata = [np.log10(self.training_labels['teff']), ancillary['miles_id']]
         self.training_labels = rfn.append_fields(self.training_labels,
                                                  newfield, newdata, usemask=False)
-        #self.training_spectra -= self.training_spectra.mean(axis=1)[:,None]
+        self.build_training_info()
+        # change where spectra are normalized
+        #self.training_spectra /= self.training_spectra[:, 1000][:, None]
         #self.reset()
 
+    def build_training_info(self):
+        self.reference_index = None
+        self.reference_spectrum = self.training_spectra.std(axis=0)
+        self.reference_label = np.zeros(self.n_labels)
+        self.training_label_range = 1.0
+
+        
     @property
     def label_names(self):
-        used_labels = np.unique([n for f in self.features for n in f])
-        return tuple(used_labels)
-
+        try:
+            used_labels = np.unique([n for f in self.features for n in f])
+            return tuple(used_labels)
+        except(AttributeError):
+            return []
 
 class TGM(object):
     """Just try the coefficients from Prugniel

@@ -16,14 +16,21 @@ def select(psi, mlib, bad_ids, bounds):
 
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
-fgk_bounds = {'teff': (4000.0, 9000.0)}
+fgk_bounds = {'teff': (3000.0, 10000.0)}
 psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
-badstar_ids = allbadstars
+badstar_ids = np.array(allbadstars.tolist() + [929, 815])
+psi.features = (['logt'], ['feh'], ['logg'],
+                ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
+                ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
+                ['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
+                ['logt', 'logt', 'logg']
+                )
 psi = select(psi, mlib, badstar_ids, fgk_bounds)
 
 ntrain = psi.n_train
 predicted = np.zeros([ntrain, psi.n_wave])
 
+#sys.exit()
 # Retrain and predict after leaving one out
 for i in range(ntrain):
     if (i % 10) == 0: print(i)
@@ -31,9 +38,10 @@ for i in range(ntrain):
     psi.features = (['logt'], ['feh'], ['logg'],
                     ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
                     ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
-                    ['logt', 'logt', 'logt'])
-                    #['logt', 'logt', 'logt', 'logt'],
-                    #['logt', 'logt', 'logg'],
+                    ['logt', 'logt', 'logt'],
+                    ['logt', 'logt', 'logt', 'logt'],
+                    ['logt', 'logt', 'logg']
+                    )
 
     spec = psi.training_spectra[i,:]
     tlabels = psi.training_labels[i]
@@ -52,6 +60,10 @@ imax = np.argmin(np.abs(psi.wavelengths - 7400))
 delta = predicted/psi.training_spectra - 1.0
 var_spectrum = delta.var(axis=0)
 var_total = delta[:, imin:imax].var(axis=1)
+lines, indlines = {'Ha':6563., 'Na D': 5897.0, 'Ca K': 3933.0, 'Ca H': 3968}, {}
+for l, w in lines.items():
+    indlines[l] = np.argmin(np.abs(psi.wavelengths - w))
+
 
 # Plot the variance spectrum
 sfig, sax = pl.subplots()
@@ -63,18 +75,36 @@ sfig.show()
 sfig.savefig('figures/residual_spectrum.pdf')
 
 # Plot a map of total variance as a function of label
-l1name, l2name = 'logt', 'feh'
-l1 = psi.training_labels[l1name]
-l2 = psi.training_labels[l2name]
-mapfig, mapax = pl.subplots()
+l1, l2, l3 = 'logt', 'feh', 'logg'
+lab = psi.training_labels 
+mapfig, mapaxes = pl.subplots(1, 2, figsize=(12.5,7))
 cm = pl.cm.get_cmap('gnuplot2_r')
-sc = mapax.scatter(l1, l2, marker='o', c=np.sqrt(var_total)*100)
-mapax.set_xlabel(l1name)
-mapax.set_ylabel(l2name)
+sc = mapaxes[0].scatter(lab[l1], lab[l2], marker='o', c=np.sqrt(var_total)*100)
+mapaxes[0].set_xlabel(l1)
+mapaxes[0].set_ylabel(l2)
+sc = mapaxes[1].scatter(lab[l1], lab[l3], marker='o', c=np.sqrt(var_total)*100)
+mapaxes[1].set_xlabel(l1)
+mapaxes[1].set_ylabel(l3)
 cbar = pl.colorbar(sc)
 cbar.ax.set_ylabel('Fractional RMS (%)')
 mapfig.show()                   
 mapfig.savefig('figures/residual_map.pdf')
+
+# Plot a map of line residual as a function of label
+showlines = lines.keys()
+for line in showlines:
+    mapfig, mapaxes = pl.subplots(1, 2, figsize=(12.5,7))
+    cm = pl.cm.get_cmap('gnuplot2_r')
+    sc = mapaxes[0].scatter(lab[l1], lab[l2], marker='o', c=delta[:, indlines[line]]*100)
+    mapaxes[0].set_xlabel(l1)
+    mapaxes[0].set_ylabel(l2)
+    sc = mapaxes[1].scatter(lab[l1], lab[l3], marker='o', c=delta[:,indlines[line]]*100)
+    mapaxes[1].set_xlabel(l1)
+    mapaxes[1].set_ylabel(l3)
+    cbar = pl.colorbar(sc)
+    cbar.ax.set_ylabel('Residual @ {}'.format(line))
+    mapfig.show()
+    mapfig.savefig('figures/residual_{}_map.pdf'.format(line))
 
 # Plot cumulative number as a function of RMS
 rms = np.sqrt(var_total)*100
@@ -88,17 +118,29 @@ cax.set_xlim(0,100)
 cfig.show()
 cfig.savefig('figures/cumlative_rms.pdf')
 
+badfig, badaxes = pl.subplots(10, 1, sharex=True, figsize=(5, 12))
+for i, bad in enumerate(oo[-10:][::-1]):
+    ax = badaxes[i]
+    labels = dict([(n, psi.trining_labels[n]) for n in psi.label_names])
+    title = "T={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.1f}".format(**labels)
+    ax.plot(psi.wavelengths, predicted[bad,:], label='predicted')
+    ax.plot(psi.wavelengths, psi.training_spectra[bad,:], label='actual')
+    ax.text(0.05, 0.95, "#{}, RMS={}%".format(psi.training_labels[bad]['miles_id'], rms[bad]),
+            transform=ax.transAxes, fontsize=10)
+    ax.text(0.5, 0.05, title, transform=ax.transAxes, fontsize=10)
+    
+    if i == 0:
+        ax.legend(loc=0, props={'size':8})
+    if i < 9:
+        ax.set_xticklabels([])
+badfig.savefig('worst10.pdf')
+        
 sys.exit()
 # compute covariance matrix
 dd = delta[:, imin:imax]
 dd[~np.isfinite(dd)] = 0.0
 cvmat = np.cov(dd.T)
 
-lines = {'Ha':6563., 'NaI_5897': 5897.0}
-ind = []
-for l, w in lines.items():
-    ind.append(np.argmin(np.abs(psi.wavelengths - w)))
-
-i=0
-plot(psi.wavelengths[imin:imax], cvmat[ind[i]-imin,:], label=lines.keys()[i])
+l = 'Ha'
+plot(psi.wavelengths[imin:imax], cvmat[ind[l]-imin,:], label=lines.keys()[i])
      
