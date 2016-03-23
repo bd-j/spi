@@ -15,7 +15,7 @@ def select(psi, mlib, bad_ids, bounds):
     return psi
 
 # The PSI Model
-mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
+mlib = '/Users/bjohnson/Projects/psi/data/irtf/irtf_prugniel.h5'
 fgk_bounds = {'teff': (3000.0, 10000.0)}
 psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 badstar_ids = np.array(allbadstars.tolist())
@@ -48,7 +48,7 @@ for i in range(ntrain):
 psi = select(psi, mlib, badstar_ids, fgk_bounds)
 
 # get fractional residuals
-wmin, wmax = 3800, 7200
+wmin, wmax = 0.38, 2.0
 imin = np.argmin(np.abs(psi.wavelengths - wmin))
 imax = np.argmin(np.abs(psi.wavelengths - wmax))
 delta = predicted/psi.training_spectra - 1.0
@@ -56,7 +56,7 @@ var_spectrum = delta.var(axis=0)
 var_total = delta[:, imin:imax].var(axis=1)
 lines, indlines = {'Ha':6563., 'NaD': 5897.0, 'CaK': 3933.0, 'CaH': 3968, 'Mg5163':5163.1}, {}
 for l, w in lines.items():
-    indlines[l] = np.argmin(np.abs(psi.wavelengths - w))
+    indlines[l] = np.argmin(np.abs(psi.wavelengths - w/1e4))
 
 
 # Plot the variance spectrum
@@ -66,7 +66,7 @@ sax.set_xlabel('$\lambda (\AA)$')
 sax.set_ylabel('Fractional RMS (%)')
 sax.set_ylim(0, 100)
 sfig.show()
-sfig.savefig('figures/residual_spectrum.pdf')
+sfig.savefig('figures/irtf_residual_spectrum.pdf')
 
 # Plot a map of total variance as a function of label
 l1, l2, l3 = 'logt', 'feh', 'logg'
@@ -81,14 +81,14 @@ mapaxes[1].set_ylabel(l3)
 cbar = pl.colorbar(sc)
 cbar.ax.set_ylabel('Fractional RMS (%)')
 mapfig.show()                   
-mapfig.savefig('figures/residual_map.pdf')
+mapfig.savefig('figures/irtf_residual_map.pdf')
 
 # Plot a map of line residual as a function of label
 showlines = lines.keys()
 for line in showlines:
-    vlim = -50, 50
-    if lines[line] < 4000:
-        vlim = -100, 100
+    vlim = None, None
+#    if lines[line] < 0.4:
+#        vlim = -100, 100
     mapfig, mapaxes = pl.subplots(1, 2, figsize=(12.5,7))
     sc = mapaxes[0].scatter(lab[l1], lab[l2], marker='o', c=delta[:, indlines[line]]*100,
                             cmap=pl.cm.coolwarm, vmin=vlim[0], vmax=vlim[1])
@@ -102,7 +102,7 @@ for line in showlines:
     cbar = pl.colorbar(sc)
     cbar.ax.set_ylabel('Residual @ {}'.format(line))
     mapfig.show()
-    mapfig.savefig('figures/residual_{}_map.pdf'.format(line))
+    mapfig.savefig('figures/irtf_residual_{}_map.pdf'.format(line))
 
 # Plot cumulative number as a function of RMS
 rms = np.sqrt(var_total)*100
@@ -114,7 +114,7 @@ cax.set_ylabel('N(<RMS)')
 cax.set_xlabel('Fractional RMS (%)')
 cax.set_xlim(0,100)
 cfig.show()
-cfig.savefig('figures/cumlative_rms.pdf')
+cfig.savefig('figures/irtf_cumlative_rms.pdf')
 
 badfig, badaxes = pl.subplots(10, 1, sharex=True, figsize=(6, 12))
 for i, bad in enumerate(oo[-10:][::-1]):
@@ -132,7 +132,7 @@ for i, bad in enumerate(oo[-10:][::-1]):
         ax.legend(loc=0, prop={'size':8})
     if i < 9:
         ax.set_xticklabels([])
-badfig.savefig('figures/worst10.pdf')
+badfig.savefig('figures/irtf_worst10.pdf')
 sys.exit()
 # compute covariance matrix
 dd = delta[:, imin:imax]
