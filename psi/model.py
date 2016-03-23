@@ -9,7 +9,8 @@ __all__ = ["PSIModel", "MILESInterpolator", "TGM"]
 
 class PSIModel(object):
 
-    def __init__(self, normalize_labels=False, **kwargs):
+    def __init__(self, normalize_labels=False, unweighted=True, **kwargs):
+        self.force_ordinary = unweighted
         self.normalize_labels = normalize_labels
         self.load_training_data(**kwargs)
         self.restrict_sample(**kwargs)

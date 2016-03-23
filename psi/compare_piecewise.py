@@ -59,4 +59,44 @@ class PiecewiseMILES(StarBasis):
             pass
 
             
-pint = PeicewiseMILES(libname=mlib, use_params=['logt', 'logg', 'feh'])
+# The PSI Model
+mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
+fgk_bounds = {'teff': (3000.0, 10000.0)}
+psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
+badstar_ids = np.array(allbadstars.tolist())
+psi.features = (['logt'], ['feh'], ['logg'],
+                ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
+                ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
+                ['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
+                ['logt', 'logt', 'logg']
+                )
+psi = select(psi, mlib, badstar_ids, fgk_bounds)
+
+# The Piecewise linear Model
+plin = PeicewiseMILES(libname=mlib, use_params=['logt', 'logg', 'feh'])
+plin.select(bounds=fgk_bounds, badvalues={'miles_id': badstar_ids})
+
+
+
+
+
+ntrain = psi.n_train
+predicted_psm = np.zeros([ntrain, psi.n_wave])
+predicted_plin = np.zeros([ntrain, len(plin.wavelengths)])
+
+
+for i in range(ntrain):
+    if (i % 10) == 0: print(i)
+    # get full sample and the parameters of the star to leave out
+    psi = psi_select(psi, mlib, badstar_ids, fgk_bounds)
+    plin = plin_select(plin, mlib, badstar_ids, fgk_bounds)
+    spec = psi.training_spectra[i,:]
+    tlabels = psi.training_labels[i]
+    labels = dict([(n, tlabels[n]) for n in psi.label_names])
+    # leave one out and train
+    psi.leave_out(i)
+    psi.train()
+    
+    predicted_psi[i, :] = psi.get_star_spectrum(**labels)
+    predicted_plin[i, :] = plin.get_star_spectrum(**labels)
+    

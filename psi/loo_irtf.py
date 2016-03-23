@@ -4,7 +4,7 @@ import matplotlib.pyplot as pl
 from model import MILESInterpolator
 from badstar import allbadstars
 
-def select(psi, mlib, bad_ids, bounds):
+def select(psi, mlib, bad_ids, bounds, normwave=1.0):
     """Select a training set using bounds and removing bad stars listed by miles_id
     """
     psi.load_training_data(training_data=mlib)
@@ -12,11 +12,12 @@ def select(psi, mlib, bad_ids, bounds):
            if b in psi.training_labels['miles_id']]
     psi.leave_out(ind)
     psi.restrict_sample(bounds=bounds)
+    psi.renormalize_training_spectra(normwave)
     return psi
 
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/irtf/irtf_prugniel.h5'
-fgk_bounds = {'teff': (3000.0, 10000.0)}
+fgk_bounds = {'teff': (2500.0, 6500.0)}
 psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 badstar_ids = np.array(allbadstars.tolist())
 psi.features = (['logt'], ['feh'], ['logg'],
@@ -48,12 +49,19 @@ for i in range(ntrain):
 psi = select(psi, mlib, badstar_ids, fgk_bounds)
 
 # get fractional residuals
-wmin, wmax = 0.38, 2.0
+delta = predicted/psi.training_spectra - 1.0
+# get variance in good regions of the spectrum
+wave = psi.wavelengths
+wmin, wmax = 0.38, 2.4
+telluric = [(1.35, 1.43), (1.81, 1.91)]
+varinds = (wave > wmin) & (wave < wmax)
+for bl, bh in telluric:
+    varinds = varinds & ((wave  > bh) | (wave  < bl))
 imin = np.argmin(np.abs(psi.wavelengths - wmin))
 imax = np.argmin(np.abs(psi.wavelengths - wmax))
-delta = predicted/psi.training_spectra - 1.0
-var_spectrum = delta.var(axis=0)
-var_total = delta[:, imin:imax].var(axis=1)
+
+var_spectrum = np.nanvar(delta, axis=0)
+var_total = np.nanvar(delta[:, varinds], axis=1)
 lines, indlines = {'Ha':6563., 'NaD': 5897.0, 'CaK': 3933.0, 'CaH': 3968, 'Mg5163':5163.1}, {}
 for l, w in lines.items():
     indlines[l] = np.argmin(np.abs(psi.wavelengths - w/1e4))
@@ -64,7 +72,7 @@ sfig, sax = pl.subplots()
 sax.plot(psi.wavelengths, np.sqrt(var_spectrum)*100, label='$\sigma(m/o-1)$')
 sax.set_xlabel('$\lambda (\AA)$')
 sax.set_ylabel('Fractional RMS (%)')
-sax.set_ylim(0, 100)
+sax.set_ylim(0, 200)
 sfig.show()
 sfig.savefig('figures/irtf_residual_spectrum.pdf')
 
@@ -78,13 +86,14 @@ mapaxes[0].set_ylabel(l2)
 sc = mapaxes[1].scatter(lab[l1], lab[l3], marker='o', c=np.sqrt(var_total)*100)
 mapaxes[1].set_xlabel(l1)
 mapaxes[1].set_ylabel(l3)
+mapaxes[1].invert_yaxis()
 cbar = pl.colorbar(sc)
 cbar.ax.set_ylabel('Fractional RMS (%)')
 mapfig.show()                   
 mapfig.savefig('figures/irtf_residual_map.pdf')
 
 # Plot a map of line residual as a function of label
-showlines = lines.keys()
+showlines = []#lines.keys()
 for line in showlines:
     vlim = None, None
 #    if lines[line] < 0.4:
@@ -121,8 +130,8 @@ for i, bad in enumerate(oo[-10:][::-1]):
     ax = badaxes[i]
     labels = dict([(n, psi.training_labels[bad][n]) for n in psi.training_labels.dtype.names])
     title = "T={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.1f}".format(**labels)
-    ax.plot(psi.wavelengths, predicted[bad,:], label='predicted')
-    ax.plot(psi.wavelengths, psi.training_spectra[bad,:], label='actual')
+    ax.plot(psi.wavelengths[imin:imax], predicted[bad, imin:imax], label='predicted')
+    ax.plot(psi.wavelengths[imin:imax], psi.training_spectra[bad, imin:imax], label='actual')
     ax.text(0.05, 0.9, "#{}, RMS={:4.1f}%".format(psi.training_labels[bad]['miles_id'], rms[bad]),
             transform=ax.transAxes, fontsize=10)
     ax.text(0.7, 0.05, title, transform=ax.transAxes, fontsize=10)
