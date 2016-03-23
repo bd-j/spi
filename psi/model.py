@@ -291,6 +291,10 @@ class MILESInterpolator(PSIModel):
         #self.training_spectra /= self.training_spectra[:, 1000][:, None]
         #self.reset()
 
+    def renormalize_training_spectra(self, normwave):
+        ind_wave = np.argmin(np.abs(psi.wavelengths - normwave))
+        self.training_spectra /= self.training_spectra[:, ind_wave][:, None]
+        
     def build_training_info(self):
         self.reference_index = None
         self.reference_spectrum = self.training_spectra.std(axis=0)
