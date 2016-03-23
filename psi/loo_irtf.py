@@ -17,7 +17,7 @@ def select(psi, mlib, bad_ids, bounds, normwave=1.0):
 
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/irtf/irtf_prugniel.h5'
-fgk_bounds = {'teff': (2500.0, 6500.0)}
+fgk_bounds = {'teff': (3500.0, 10000.0)}
 psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 badstar_ids = np.array(allbadstars.tolist())
 psi.features = (['logt'], ['feh'], ['logg'],
@@ -66,13 +66,12 @@ lines, indlines = {'Ha':6563., 'NaD': 5897.0, 'CaK': 3933.0, 'CaH': 3968, 'Mg516
 for l, w in lines.items():
     indlines[l] = np.argmin(np.abs(psi.wavelengths - w/1e4))
 
-
 # Plot the variance spectrum
 sfig, sax = pl.subplots()
 sax.plot(psi.wavelengths, np.sqrt(var_spectrum)*100, label='$\sigma(m/o-1)$')
 sax.set_xlabel('$\lambda (\AA)$')
 sax.set_ylabel('Fractional RMS (%)')
-sax.set_ylim(0, 200)
+sax.set_ylim(0, 80)
 sfig.show()
 sfig.savefig('figures/irtf_residual_spectrum.pdf')
 
