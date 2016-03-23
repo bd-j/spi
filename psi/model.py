@@ -47,7 +47,7 @@ class PSIModel(object):
         else:
             self.reference_index = None
             self.reference_spectrum = np.zeros(self.n_wave)
-            self.reference_label = np.zeros(self.n_labels)
+            self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
             self.training_label_range = 1.0
         
     def reset(self):
@@ -153,34 +153,24 @@ class PSIModel(object):
             return self.weighted(spec, weights)
         
     def ordinary(self, spec):
+        """OLS
+        """
         return np.dot(self.Ainv, np.dot(self.X.T, spec))
 
     def weighted(self, spec, weights):
-        """Should use woodbury matrix lemma here to update self.Ainv
+        """Weighted least-squares. Should use woodbury matrix lemma here to
+        update self.Ainv instead of reinverting each time.
         """
         Xp = np.dot(weights, self.X)
         Ainv = inv(np.dot(Xp.T, Xp))
         return np.dot(Ainv, np.dot(Xp.T, spec * weights))
-                
-    def labels_from_dict(self, **label_dict):
-        """Convert from a dictionary of labels to a numpy structured array
-        """
-        dtype = np.dtype([(n, np.float) for n in label_dict.keys()])
-        try:
-            nl = len(label_dict[label_dict.keys()[0]])
-        except:
-            nl = 1
-        labels = np.zeros(nl, dtype=dtype)
-        for n in label_dict.keys():
-            labels[n] = label_dict[n]
-        return labels
 
     def get_star_spectrum(self, **kwargs):
         """Get an interpolated spectrum at the parameter values (labels)
         specified as keywords.
         """
         assert True in self.trained
-        labels = self.labels_from_dict(**kwargs)
+        labels = make_struct(**kwargs)
         features = self.labels_to_features(labels)
         spectrum = np.dot(self.coeffs, features.T)
         return np.squeeze(spectrum.T * self.reference_spectrum)

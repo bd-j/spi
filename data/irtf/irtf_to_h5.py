@@ -13,14 +13,21 @@ dat, hdr = pyfits.getdata(files[0], header=True)
 nwave = len(dat)
 spectra = np.zeros([nirtf, nwave])
 uncertainty = np.zeros([nirtf, nwave])
+all_ids = []
 for i, n in enumerate(names):
     dat = pyfits.getdata(files[i])
-    hdr = pyfits.getheader(files[
-    miles_id = hdr['miles_id']
+    hdr = pyfits.getheader(files[i])
+    mid = hdr['miles_id']
+    miles_id = int(mid.strip()[:-1])
+    print(mid, miles_id)
     spectra[i, :] = dat['flux']
     uncertainty[i, :] = dat['uncertainty']
-    parameters[i] = miles['parameters'][miles_id - 1]
-    ancillary[i] = miles['ancillary'][miles_id - 1]
+    all_ids.append(miles_id)
+
+parameters = miles['parameters'][:][np.array(all_ids) - 1]
+ancillary = miles['ancillary'][:][np.array(all_ids) - 1]
+
+assert len(parameters) == nirtf
 
 with h5py.File('irtf_prugniel.h5', "w") as h5:
     h5.create_dataset('wavelengths', data=dat['wavelength'])
