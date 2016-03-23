@@ -2,15 +2,20 @@ import os, glob, sys
 import numpy as np
 import astropy.io.fits as pyfits
 import h5py
+import json
 
 files = glob.glob('fits_spectra/*fits')
-names = [os.path.basename(f).replace('.fits', '')]
+names = [os.path.basename(f).replace('.fits', '') for f in files]
 nirtf = len(files)
 
 miles = h5py.File('../miles/miles_prugniel.h5', "r")
-
+dat, hdr = pyfits.getdata(files[0], header=True)
+nwave = len(dat)
+spectra = np.zeros([nirtf, nwave])
+uncertainty = np.zeros([nirtf, nwave])
 for i, n in enumerate(names):
-    dat, hdr = pyfits.getdata(files[i], header=True)
+    dat = pyfits.getdata(files[i])
+    hdr = pyfits.getheader(files[
     miles_id = hdr['miles_id']
     spectra[i, :] = dat['flux']
     uncertainty[i, :] = dat['uncertainty']

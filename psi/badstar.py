@@ -30,7 +30,7 @@
 
 import numpy as np
 
-milesid_bad_teff = [819, 140, 834, 104, 593, 386, 933, 234, 617, 99]
+milesid_bad_teff = [819, 140, 834, 104, 593, 386, 933, 234, 617, 99, 568]
 milesid_multiples = [256, 78, 252, 572, 836, 678]
 milesid_badid_sharma = [501, 952, 591]
 milesid_bad_sharma = {175: 'variable', 459: 'M8III pulsating', 508: 'M8 pulsating',
@@ -44,7 +44,11 @@ milesid_bad_sharma = {175: 'variable', 459: 'M8III pulsating', 508: 'M8 pulsatin
                       968: 'P11 params ok',
                       }
 
+milesid_bad_misc = {814: 'HD206778', 2: 'HD225212', 651: 'HD163990', 343: 'HD080390',
+                    720: 'Carbon Star', 929: 'Low S/N', 815: '', 970: '',
+                    }
 allbadstars = np.array(milesid_bad_teff + milesid_multiples +
-                       milesid_badid_sharma + milesid_bad_sharma.keys())
+                       milesid_badid_sharma + milesid_bad_sharma.keys() +
+                       milesid_bad_misc.keys())
 
 
