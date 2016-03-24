@@ -17,16 +17,17 @@ def select(psi, mlib, bad_ids, bounds):
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
 fgk_bounds = {'teff': (3000.0, 10000.0)}
-psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 badstar_ids = np.array(allbadstars.tolist())
+
+psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 psi.features = (['logt'], ['feh'], ['logg'],
                 ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
                 ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
                 ['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
                 ['logt', 'logt', 'logg']
                 )
-psi = select(psi, mlib, badstar_ids, fgk_bounds)
 
+psi = select(psi, mlib, badstar_ids, fgk_bounds)
 ntrain = psi.n_train
 predicted = np.zeros([ntrain, psi.n_wave])
 
@@ -140,8 +141,8 @@ pmags_actual = observate.getSED(psi.wavelengths, psi.training_spectra, filterlis
 pmags_predicted = observate.getSED(psi.wavelengths, predicted, filterlist=filt)
 fig, axes = pl.subplots(2, 1)
 ax= axes[0]
-ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1), 'o', label='Miles observed')
-ax.plot(psi.training_labels['logt'], np.diff(pmags_predicted, axis=1), 'o', label='Predicted')
+ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1), 'o', label='Miles spectra')
+ax.plot(psi.training_labels['logt'], np.diff(pmags_predicted, axis=1), 'o', label='Predicted spectra')
 ax.set_xlabel('logt')
 ax.set_ylabel('Hipparcos B-V')
 ax.legend(loc=0)
@@ -151,7 +152,7 @@ ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1) - np.diff(pma
 ax.set_xlabel('logt')
 ax.set_ylabel('$\Delta(B-V)$')
 ax.legend(loc=0)
-
+fig.savefig('figures/B-V.pdf')
 
 sys.exit()
 # compute covariance matrix

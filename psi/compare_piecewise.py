@@ -2,62 +2,8 @@ import numpy as np
 import matplotlib.pyplot as pl
 from numpy.lib import recfunctions as rfn
 
-from model import MILESInterpolator, within
-from bsfh.source_basis import StarBasis
-
-class PiecewiseMILES(StarBasis):
-
-
-    def load_lib(self, libname='', **extras):
-        """Read a CKC library which has been pre-convolved to be close to your
-        resolution.  This library should be stored as an HDF5 file, with the
-        datasets ``wavelengths``, ``parameters`` and ``spectra``.  These are
-        ndarrays of shape (nwave,), (nmodels,), and (nmodels, nwave)
-        respecitvely.  The ``parameters`` array is a structured array.  Spectra
-        with no fluxes > 1e-32 are removed from the library
-        """
-        import h5py
-        with h5py.File(libname, "r") as f:
-            self._wave = np.array(f['wavelengths'])
-            self._libparams = np.array(f['parameters'])
-            self._spectra = np.array(f['spectra'])
-            ancillary = f['ancillary'][:]
-        # add and rename labels here.  Note that not all labels need or will be
-        # used in the feature generation
-        newfield = ['logt', 'miles_id']
-        newdata = [np.log10(self._libparams['teff']), ancillary['miles_id']]
-        self._libparams = rfn.append_fields(self._libparams, newfield, newdata,
-                                            usemask=False)
-        
-    def select(self, bounds=None, badvalues=None):
-
-        if bounds is not None:
-            good = np.ones(len(self._libparams), dtype=bool)
-            for name, bound in bounds.items():
-                good = good & within(bound, self._libparams[name])
-            self._spectra = self._spectra[good, :]
-            self._libparams = self._libparams[good, ...]
-
-        if badvalues is not None:
-            inds = []
-            for name, bad in badvalues.items():
-                inds += [self._libparams[name].tolist().index(b) for b in bad
-                        if b in self._libparams[name]]
-            self.leave_out(np.array(inds).flat)
-
-        self.triangulate()
-
-    def leave_out(self, inds):
-        self._spectra = np.delete(self._spectra, inds, axis=0)
-        self._libparams = np.delete(self._libparams, inds)
-        self.reset()
-
-    def reset(self):
-        self.triangulate()
-        try:
-            self.build_kdtree()
-        except NameError:
-            pass
+from model import MILESInterpolator
+from comparison_model import PiecewiseMILES
 
 def psi_select(psi, mlib, bad_ids, bounds):
     """Select a training set using bounds and removing bad stars listed by miles_id
@@ -94,7 +40,6 @@ psi.features = (['logt'], ['feh'], ['logg'],
 # The Piecewise linear Model
 plin = PiecewiseMILES(libname=mlib, log_interp=True,
                       use_params=['logt', 'logg', 'feh'])
-
 
 subpsi = psi_select(psi, mlib, badstar_ids, fgk_bounds)
 ntrain = subpsi.n_train

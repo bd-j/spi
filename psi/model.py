@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.lib import recfunctions as rfn
 from numpy.linalg import inv
+from scipy.spatial import Delauynay, ConvexHull
 import h5py
 import astropy.io.fits as pyfits
 
@@ -121,6 +122,12 @@ class PSIModel(object):
         quad = np.einsum('...i,...j->...ij', linear, linear)[:, self.qinds[:, 0], self.qinds[:, 1]]
         return np.hstack([linear, quad])
 
+    def inside_hull(self, labels):
+        L = flatten_struct(self.training_labels, use_labels=self.label_names)
+        l = flatten_struct(labels, use_labels=self.label_names)
+        hull = Delaunay(ConvexHull(L))
+        return hull.find_simplex(l)>=0
+    
     def construct_design_matrix(self, **extras):
         """Construct and store the [Nobj x Nfeatures] design matrix and its
         [Nfeature x Nfeature] inverse square.
@@ -166,12 +173,14 @@ class PSIModel(object):
         Ainv = inv(np.dot(Xp.T, Xp))
         return np.dot(Ainv, np.dot(Xp.T, spec * weights))
 
-    def get_star_spectrum(self, **kwargs):
+    def get_star_spectrum(self, check_coverage=False, **kwargs):
         """Get an interpolated spectrum at the parameter values (labels)
         specified as keywords.
         """
         assert True in self.trained
         labels = make_struct(**kwargs)
+        if check_coverage:
+            inside = self.inside_hull(labels)
         features = self.labels_to_features(labels)
         spectrum = np.dot(self.coeffs, features.T)
         return np.squeeze(spectrum.T * self.reference_spectrum)
@@ -291,7 +300,7 @@ class MILESInterpolator(PSIModel):
         self.reference_spectrum = self.training_spectra.std(axis=0)
         self.reference_label = np.zeros(self.n_labels)
         self.training_label_range = 1.0
-
+        self._dtri = Delaunay(
         
     @property
     def label_names(self):
@@ -301,48 +310,6 @@ class MILESInterpolator(PSIModel):
         except(AttributeError):
             return []
 
-class TGM(object):
-    """Just try the coefficients from Prugniel
-    """
-    def __init__(self, interpolator='miles_tgm.fits', trange='warm'):
-        extension = {'warm': 0, 'hot':1, 'cold': 2}
-        self.trange = trange
-        coeffs, hdr = pyfits.getdata(interpolator, ext=extension[trange],
-                                     header=True)
-        self.coeffs = coeffs.T
-        self.version = int(hdr['intrp_v'])
-
-        w = (np.arange(coeffs.shape[1]) - (hdr['CRPIX1']-1)) * hdr['CDELT1'] + hdr['CRVAL1']
-        self.wavelengths = w
-        self.n_wave = len(self.wavelengths)
-        
-    def labels_to_features(self, logt=3.7617, logg=4.44, feh=0, **extras):
-        logt_n = logt - 3.7617
-        grav = logg - 4.44
-        tt = logt_n / 0.2  # why?
-        tt2 = tt**2 - 1.  # why? Chebyshev.
-        # first 20 terms
-        features = [1., tt, feh, grav, tt**2, tt*tt2, tt2*tt2, tt*feh, tt*grav,
-                    tt2*grav, tt2*feh, grav**2, feh**2, tt*tt2**2, tt*grav**2, grav**3, feh**3,
-                    tt*feh**2, grav*feh, grav**2*feh, grav*feh**2]
-        if self.version == 2:
-            features += [np.exp(tt) - 1. - tt*(1. + tt/2. + tt**2/6. + tt**3/24. + tt**4/120.),
-                         np.exp(tt*2) - 1. - 2.*tt*(1. + tt + 2./3.*tt**2 + tt**3/3. + tt**4*2./15.)
-                         ]
-        elif self.version == 3:
-            features += [tt*tt2*grav, tt2*tt2*grav, tt2*tt*feh, tt2*grav**2, tt2*grav**3]
-
-        X = np.array(features)
-        return X.T
-
-    def get_star_spectrum(self, **kwargs):
-        """Get an interpolated spectrum at the parameter values (labels)
-        specified as keywords.  These *must* include all elements of
-        ``label_names``.
-        """
-        features = self.labels_to_features(**kwargs)
-        spectrum = np.dot(self.coeffs, features.T)
-        return np.squeeze(spectrum.T)
 
 
 def flatten_struct(struct, use_labels=None):
