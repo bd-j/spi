@@ -12,12 +12,12 @@ def select(psi, mlib, bad_ids, bounds, normwave=1.0):
            if b in psi.training_labels['miles_id']]
     psi.leave_out(ind)
     psi.restrict_sample(bounds=bounds)
-    psi.renormalize_training_spectra(bylabel='fbol')
+    psi.renormalize_training_spectra(bylabel='luminosity')
     return psi
 
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/irtf/irtf_prugniel_extended.h5'
-fgk_bounds = {'teff': (3500.0, 10000.0)}
+fgk_bounds = {'teff': (3000.0, 10000.0)}
 psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 badstar_ids = np.array(allbadstars.tolist())
 psi.features = (['logt'], ['feh'], ['logg'],
@@ -69,7 +69,7 @@ for l, w in lines.items():
 # Plot the variance spectrum
 sfig, sax = pl.subplots()
 sax.plot(psi.wavelengths[imin:imax], np.sqrt(var_spectrum[imin:imax])*100, label='$\sigma(m/o-1)$')
-sax.set_xlabel('$\lambda (\AA)$')
+sax.set_xlabel('$\lambda (\mu m)$')
 sax.set_ylabel('Fractional RMS (%)')
 sax.set_ylim(0, 80)
 sfig.show()
