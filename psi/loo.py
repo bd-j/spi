@@ -4,16 +4,6 @@ import matplotlib.pyplot as pl
 from model import MILESInterpolator
 from badstar import allbadstars
 
-def select(psi, mlib, bad_ids, bounds):
-    """Select a training set using bounds and removing bad stars listed by miles_id
-    """
-    psi.load_training_data(training_data=mlib)
-    ind = [psi.training_labels['miles_id'].tolist().index(b) for b in bad_ids
-           if b in psi.training_labels['miles_id']]
-    psi.leave_out(ind)
-    psi.restrict_sample(bounds=bounds)
-    return psi
-
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
 fgk_bounds = {'teff': (3000.0, 10000.0)}
@@ -24,10 +14,10 @@ psi.features = (['logt'], ['feh'], ['logg'],
                 ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
                 ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
                 ['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
-                ['logt', 'logt', 'logg']
+                ['logt', 'logt', 'logg'], ['logt', 'logg', 'logg']
                 )
 
-psi = select(psi, mlib, badstar_ids, fgk_bounds)
+psi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_ids})
 ntrain = psi.n_train
 predicted = np.zeros([ntrain, psi.n_wave])
 
@@ -36,7 +26,7 @@ predicted = np.zeros([ntrain, psi.n_wave])
 for i in range(ntrain):
     if (i % 10) == 0: print(i)
     # get full sample and the parameters of the star to leave out
-    psi = select(psi, mlib, badstar_ids, fgk_bounds)
+    psi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_ids})
     spec = psi.training_spectra[i,:]
     tlabels = psi.training_labels[i]
     labels = dict([(n, tlabels[n]) for n in psi.label_names])
@@ -46,7 +36,7 @@ for i in range(ntrain):
     predicted[i, :] = psi.get_star_spectrum(**labels)
 
 # reload the full training set
-psi = select(psi, mlib, badstar_ids, fgk_bounds)
+psi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_ids})
 
 # get fractional residuals
 wmin, wmax = 3800, 7200

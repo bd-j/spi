@@ -8,11 +8,7 @@ from comparison_model import PiecewiseMILES
 def psi_select(psi, mlib, bad_ids, bounds):
     """Select a training set using bounds and removing bad stars listed by miles_id
     """
-    psi.load_training_data(training_data=mlib)
-    ind = [psi.training_labels['miles_id'].tolist().index(b) for b in bad_ids
-           if b in psi.training_labels['miles_id']]
-    psi.leave_out(ind)
-    psi.restrict_sample(bounds=bounds)
+    psi.select(training_data=mlib, bounds=bounds, badvalues={'miles_id': bad_ids})
     return psi
 
 def plin_select(plin, mlib, bad_ids, bounds):
