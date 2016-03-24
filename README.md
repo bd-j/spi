@@ -18,4 +18,10 @@ Doing the basic regression thing.
 	plot(psi.wavelengths, psi.spectrum)
 ```
 
+References:
+----
 
+* Worthey, G., Faber, S. M., Gonzalez, J. J., & Burstein, D. 1994, ApJS, 94, 687 (indices)
+* Wu, Y., Singh, H. P., Prugniel, P., Gupta, R., & Koleva, M. 2011, A&A, 525, A71
+* Sharma, K., Prugniel, P., & Singh, H. P. 2016, A&A, 585, A64 
+* Ness, M., Hogg, D. W., Rix, H.-W., Ho, A. Y. Q., & Zasowski, G. 2015, ApJ, 808, 16

@@ -133,6 +133,26 @@ for i, bad in enumerate(oo[-10:][::-1]):
     if i < 9:
         ax.set_xticklabels([])
 badfig.savefig('figures/worst10.pdf')
+
+from sedpy import observate
+filt = observate.load_filters(['hipparcos_B', 'hipparcos_V'])
+pmags_actual = observate.getSED(psi.wavelengths, psi.training_spectra, filterlist=filt)
+pmags_predicted = observate.getSED(psi.wavelengths, predicted, filterlist=filt)
+fig, axes = pl.subplots(2, 1)
+ax= axes[0]
+ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1), 'o', label='Miles observed')
+ax.plot(psi.training_labels['logt'], np.diff(pmags_predicted, axis=1), 'o', label='Predicted')
+ax.set_xlabel('logt')
+ax.set_ylabel('Hipparcos B-V')
+ax.legend(loc=0)
+ax = axes[1]
+ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1) - np.diff(pmags_predicted, axis=1),
+        'o', label='(obs-predicted)')
+ax.set_xlabel('logt')
+ax.set_ylabel('$\Delta(B-V)$')
+ax.legend(loc=0)
+
+
 sys.exit()
 # compute covariance matrix
 dd = delta[:, imin:imax]
