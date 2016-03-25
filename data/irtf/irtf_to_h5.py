@@ -27,7 +27,7 @@ for i, n in enumerate(names):
         all_ids.append(miles_id)
         all_lum.append(float(hdr['logl']))
         try:
-            all_dist.append(1 / float(hdr['parallax']))
+            all_dist.append(1 / (float(hdr['parallax'] * 1e-3)))
         except:
             all_dist.append(hdr['distance'])
     else:
@@ -52,7 +52,7 @@ lsun = const.L_sun.cgs.value
 lightspeed = 2.998e14 # micron/s
 d = np.array(all_dist) * const.pc.cgs.value
 # not sure why 1e6 necessary here....
-l_nu = spectra * (np.pi * 4 * d[:, None]**2) / lsun * 1e6
+l_nu = spectra * (np.pi * 4 * d[:, None]**2) / lsun
 wave = dat['wavelength']
 lum = np.trapz(l_nu * lightspeed / wave**2, wave)
 #plot(lum / 10**np.array(all_lum), 'o')

@@ -76,6 +76,7 @@ mapfig.savefig('figures/residual_map.pdf')
 
 # Plot a map of line residual as a function of label
 showlines = lines.keys()
+showlines = []
 for line in showlines:
     vlim = -50, 50
     if lines[line] < 4000:
@@ -117,32 +118,75 @@ for i, bad in enumerate(oo[-10:][::-1]):
     ax.text(0.05, 0.9, "#{}, RMS={:4.1f}%".format(psi.training_labels[bad]['miles_id'], rms[bad]),
             transform=ax.transAxes, fontsize=10)
     ax.text(0.7, 0.05, title, transform=ax.transAxes, fontsize=10)
-    print(i)
-    
     if i == 0:
         ax.legend(loc=0, prop={'size':8})
     if i < 9:
         ax.set_xticklabels([])
 badfig.savefig('figures/worst10.pdf')
 
+# B-V colors
 from sedpy import observate
-filt = observate.load_filters(['hipparcos_B', 'hipparcos_V'])
+filt = observate.load_filters(['hipparcos_V', 'hipparcos_B'])
+filt = observate.load_filters(['bessell_V', 'bessell_B'])
 pmags_actual = observate.getSED(psi.wavelengths, psi.training_spectra, filterlist=filt)
 pmags_predicted = observate.getSED(psi.wavelengths, predicted, filterlist=filt)
+# Compare colors to observations
+mid, b, v = np.genfromtxt('../data/tycho2_b_v.dat', unpack=True)
+bv = b - v
+mid = mid.astype(int)
+inds = np.zeros(len(mid)) - 1
+mlist = psi.training_labels['miles_id'].tolist()
+for i, m in enumerate(mid):
+    if m in mlist:
+        inds[i] = mlist.index(m)
+inds = inds.astype(int)
+good = inds >= 0
+
 fig, axes = pl.subplots(2, 1)
 ax= axes[0]
 ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1), 'o', label='Miles spectra')
 ax.plot(psi.training_labels['logt'], np.diff(pmags_predicted, axis=1), 'o', label='Predicted spectra')
+ax.plot(psi.training_labels['logt'][inds[good]], bv[good], 'o', label='observed color')
 ax.set_xlabel('logt')
 ax.set_ylabel('Hipparcos B-V')
 ax.legend(loc=0)
 ax = axes[1]
 ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1) - np.diff(pmags_predicted, axis=1),
-        'o', label='(obs-predicted)')
+        'o', label='(miles-predicted)')
 ax.set_xlabel('logt')
 ax.set_ylabel('$\Delta(B-V)$')
 ax.legend(loc=0)
 fig.savefig('figures/B-V.pdf')
+
+pfig, pax = pl.subplots(2, 1)
+pax[0].plot(psi.training_labels['logt'][inds[good]], np.diff(pmags_actual, axis=1)[inds[good], 0] - bv[good],
+         'o', label='(miles-obs)')
+pax[0].plot(psi.training_labels['logt'][inds[good]], np.diff(pmags_predicted, axis=1)[inds[good], 0] - bv[good],
+         'o', label='(predicted-obs)')
+pax[0].legend(loc=0)
+pax[0].set_xlabel('logt')
+pax[0].set_ylabel('$\Delta (B-V)$')
+pax[1].scatter(np.diff(pmags_actual, axis=1)[inds[good], 0] - bv[good],
+               np.diff(pmags_predicted, axis=1)[inds[good], 0] - bv[good],
+               c=(np.sqrt(var_total)*100)[inds[good]], marker='o')
+pax[1].set_xlabel('miles-obs')
+pax[1].set_ylabel('predicted-obs')
+pax[1].plot([-1,1], [-1,1], linestyle=':', color='k')
+pax[1].set_xlim(-0.4, 0.4)
+pax[1].set_ylim(-0.4, 0.4)
+
+out = open('bv.dat', "w")
+fmt = '{}  {:f5.3} {:f5.3} {:f5.3}\n'
+out.write('{} {}\n'.format(*[f.name for f in filt]))
+out.write('MID  bv_obs  bv_miles  bv_pred\n')
+for i in range(len(good)):
+    bv_pred = np.diff(pmags_predicted, axis=1)[inds[i], 0]
+    bv_miles = np.diff(pmags_actual, axis=1)[inds[i], 0]
+    bv_obs = bv[i]
+    if good[i]:
+        out.write(fmt.format(mid[i], bv_obs, bv_miles, bv_pred))
+out.close()
+
 
 sys.exit()
 # compute covariance matrix

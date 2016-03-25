@@ -62,7 +62,15 @@ imax = np.argmin(np.abs(psi.wavelengths - wmax))
 
 var_spectrum = np.nanvar(delta, axis=0)
 var_total = np.nanvar(delta[:, varinds], axis=1)
-lines, indlines = {'Ha':6563., 'NaD': 5897.0, 'CaK': 3933.0, 'CaH': 3968, 'Mg5163':5163.1}, {}
+
+# Determine fraction of pixels contributing half the RMS
+sv = np.sort(delta[:, varinds]**2, axis=1)
+svc = np.cumsum(sv, axis=1)
+svcn = svc/ np.nanmax(svc, axis=-1)[:,None]
+half = np.nanargmin(np.abs(svcn - 0.5), axis=1)
+npix = np.isfinite(svcn).sum(axis=1)
+
+lines, indlines = {'Ha':6563., 'NaD': 5897.0, 'CaK': 3933.0, 'CaH': 3968, 'Mg5163':5163.1, 'CaT':8544.0}, {}
 for l, w in lines.items():
     indlines[l] = np.argmin(np.abs(psi.wavelengths - w/1e4))
 
@@ -92,11 +100,11 @@ mapfig.show()
 mapfig.savefig('figures/irtf_residual_map.pdf')
 
 # Plot a map of line residual as a function of label
-showlines = []#lines.keys()
+showlines = ['CaT']#lines.keys()
 for line in showlines:
-    vlim = None, None
+    vlim = -100, 100
 #    if lines[line] < 0.4:
-#        vlim = -100, 100
+    vlim = -100, 100
     mapfig, mapaxes = pl.subplots(1, 2, figsize=(12.5,7))
     sc = mapaxes[0].scatter(lab[l1], lab[l2], marker='o', c=delta[:, indlines[line]]*100,
                             cmap=pl.cm.coolwarm, vmin=vlim[0], vmax=vlim[1])
@@ -123,6 +131,7 @@ cax.set_xlabel('Fractional RMS (%)')
 cax.set_xlim(0,100)
 cfig.show()
 cfig.savefig('figures/irtf_cumlative_rms.pdf')
+
 
 badfig, badaxes = pl.subplots(10, 1, sharex=True, figsize=(6, 12))
 for i, bad in enumerate(oo[-10:][::-1]):
