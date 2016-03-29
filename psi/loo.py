@@ -13,8 +13,9 @@ psi = MILESInterpolator(training_data=mlib, normalize_labels=False)
 psi.features = (['logt'], ['feh'], ['logg'],
                 ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
                 ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
-                ['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
-                ['logt', 'logt', 'logg'], ['logt', 'logg', 'logg']
+                ['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'], #logt high order
+                ['logt', 'logt', 'logg'], ['logt', 'logg', 'logg'], # logg logt high order cross terms
+                ['logt', 'logt', 'feh'], ['logt', 'feh', 'feh']  # feh logt high order cross terms
                 )
 
 psi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_ids})
@@ -69,14 +70,16 @@ mapaxes[0].set_ylabel(l2)
 sc = mapaxes[1].scatter(lab[l1], lab[l3], marker='o', c=np.sqrt(var_total)*100)
 mapaxes[1].set_xlabel(l1)
 mapaxes[1].set_ylabel(l3)
+mapaxes[1].invert_yaxis()
 cbar = pl.colorbar(sc)
 cbar.ax.set_ylabel('Fractional RMS (%)')
+[ax.invert_xaxis() for ax in mapaxes]
 mapfig.show()                   
 mapfig.savefig('figures/residual_map.pdf')
 
 # Plot a map of line residual as a function of label
 showlines = lines.keys()
-showlines = []
+showlines = ['CaK', 'NaD']
 for line in showlines:
     vlim = -50, 50
     if lines[line] < 4000:
@@ -93,6 +96,7 @@ for line in showlines:
     mapaxes[1].invert_yaxis()
     cbar = pl.colorbar(sc)
     cbar.ax.set_ylabel('Residual @ {}'.format(line))
+    [ax.invert_xaxis() for ax in mapaxes]
     mapfig.show()
     mapfig.savefig('figures/residual_{}_map.pdf'.format(line))
 
@@ -127,7 +131,7 @@ badfig.savefig('figures/worst10.pdf')
 # B-V colors
 from sedpy import observate
 filt = observate.load_filters(['hipparcos_V', 'hipparcos_B'])
-filt = observate.load_filters(['bessell_V', 'bessell_B'])
+#filt = observate.load_filters(['bessell_V', 'bessell_B'])
 pmags_actual = observate.getSED(psi.wavelengths, psi.training_spectra, filterlist=filt)
 pmags_predicted = observate.getSED(psi.wavelengths, predicted, filterlist=filt)
 # Compare colors to observations
@@ -144,8 +148,8 @@ good = inds >= 0
 
 fig, axes = pl.subplots(2, 1)
 ax= axes[0]
-ax.plot(psi.training_labels['logt'], np.diff(pmags_actual, axis=1), 'o', label='Miles spectra')
-ax.plot(psi.training_labels['logt'], np.diff(pmags_predicted, axis=1), 'o', label='Predicted spectra')
+ax.plot(psi.training_labels['logt'][inds[good]], np.diff(pmags_actual, axis=1)[inds[good], 0], 'o', label='Miles spectra')
+ax.plot(psi.training_labels['logt'][inds[good]], np.diff(pmags_predicted, axis=1)[inds[good], 0], 'o', label='Predicted spectra')
 ax.plot(psi.training_labels['logt'][inds[good]], bv[good], 'o', label='observed color')
 ax.set_xlabel('logt')
 ax.set_ylabel('Hipparcos B-V')
@@ -166,9 +170,9 @@ pax[0].plot(psi.training_labels['logt'][inds[good]], np.diff(pmags_predicted, ax
 pax[0].legend(loc=0)
 pax[0].set_xlabel('logt')
 pax[0].set_ylabel('$\Delta (B-V)$')
-pax[1].scatter(np.diff(pmags_actual, axis=1)[inds[good], 0] - bv[good],
-               np.diff(pmags_predicted, axis=1)[inds[good], 0] - bv[good],
-               c=(np.sqrt(var_total)*100)[inds[good]], marker='o')
+a = np.diff(pmags_actual, axis=1)[inds[good], 0] - bv[good]
+b = np.diff(pmags_predicted, axis=1)[inds[good], 0] - bv[good]
+pax[1].scatter(a, b, c=(np.sqrt(var_total)*100)[inds[good]], marker='o')
 pax[1].set_xlabel('miles-obs')
 pax[1].set_ylabel('predicted-obs')
 pax[1].plot([-1,1], [-1,1], linestyle=':', color='k')
@@ -176,7 +180,7 @@ pax[1].set_xlim(-0.4, 0.4)
 pax[1].set_ylim(-0.4, 0.4)
 
 out = open('bv.dat', "w")
-fmt = '{}  {:f5.3} {:f5.3} {:f5.3}\n'
+fmt = '{}  {:5.3f} {:5.3f} {:5.3f}\n'
 out.write('{} {}\n'.format(*[f.name for f in filt]))
 out.write('MID  bv_obs  bv_miles  bv_pred\n')
 for i in range(len(good)):
