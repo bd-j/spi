@@ -13,9 +13,11 @@ __all__ = ["PSIModel", "MILESInterpolator"]
 
 class PSIModel(object):
 
-    def __init__(self, normalize_labels=False, unweighted=True, **kwargs):
+    def __init__(self, normalize_labels=False, unweighted=True,
+                 logify_flux=False, **kwargs):
         self.unweighted = unweighted
         self.normalize_labels = normalize_labels
+        self.logify_flux = logify_flux
         self.configure_features(**kwargs)
         self.select(**kwargs)
 
@@ -176,6 +178,9 @@ class PSIModel(object):
         """Do the regression for one wavelength.
         """
         spec = self.training_spectra[:, ind_wave] / self.reference_spectrum[ind_wave]
+        if self.logify_flux:
+            # logify before training
+            spec = np.log(spec)
         if (not self.has_errors) or (self.unweighted):
             return self.ordinary(spec)
         else:
@@ -203,6 +208,9 @@ class PSIModel(object):
         labels = make_struct(**kwargs)
         features = self.labels_to_features(labels)
         spectrum = np.dot(self.coeffs, features.T)
+        if self.logify_flux:
+            # Delogify
+            spectrum = np.exp(spectrum)
         if check_coverage:
             is_inside = self.inside_hull(labels)
             return np.squeeze(spectrum.T * self.reference_spectrum), is_inside
