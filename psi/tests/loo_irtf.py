@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 import matplotlib.pyplot as pl
-from model import MILESInterpolator
+from psi.library_models import MILESInterpolator
 from badstar import allbadstars
 
 def select(psi, mlib, bad_ids, bounds, normwave=1.0):

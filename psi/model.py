@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.lib import recfunctions as rfn
 from numpy.linalg import inv
 try:
     from scipy.spatial import Delaunay, ConvexHull
@@ -8,8 +7,7 @@ except:
 import h5py
 import astropy.io.fits as pyfits
 
-__all__ = ["PSIModel", "MILESInterpolator"]
-
+__all__ = ["PSIModel", "SimplePSIModel"]
 
 class PSIModel(object):
 
@@ -23,7 +21,7 @@ class PSIModel(object):
 
     def select(self, training_data=None, bounds=None, badvalues=None,
                **extras):
-        """Load and select a subsample of a particular library of training data
+        """Load and select a subsample of a particular library of training data.
         """
         if training_data is not None:
             self.load_training_data(training_data=training_data, **extras)
@@ -51,6 +49,32 @@ class PSIModel(object):
         # add and rename labels here
         self.has_errors = False
         
+    def renormalize_training_spectra(self, normwave=None, bylabel=None):
+        if normwave is not None:
+            ind_wave = np.argmin(np.abs(self.wavelengths - normwave))
+            self.training_spectra /= self.training_spectra[:, ind_wave][:, None]
+        elif bylabel is not None:
+            self.training_spectra /= self.training_labels[bylabel][:, None]
+
+    def build_training_info(self):
+        """Calculate and store quantities about the training set that will be
+        used to normalize labels and spectra.
+        """
+        if self.normalize_labels:
+            normlabels = flatten_struct(self.training_labels)
+            lo = normlabels.min(axis=0)
+            hi = normlabels.max(axis=0)
+            normlabels = (normlabels - lo) / (hi - lo)
+            self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
+            self.reference_spectrum = self.training_spectra[self.reference_index, :]
+            self.reference_label = self.training_labels[self.reference_index]
+            self.training_label_range = hi - lo
+        else:
+            self.reference_index = None
+            self.reference_spectrum = np.zeros(self.n_wave)
+            self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
+            self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
+
     def restrict_sample(self, bounds=None, **extras):
         """Remove training objects that are not within some sample.
         """
@@ -72,25 +96,6 @@ class PSIModel(object):
         """
         self.training_spectra = np.delete(self.training_spectra, inds, axis=0)
         self.training_labels = np.delete(self.training_labels, inds)
-
-    def build_training_info(self):
-        """Calculate and store quantities about the training set tht will be
-        used to normalize labels and spectra.
-        """
-        if self.normalize_labels:
-            normlabels = flatten_struct(self.training_labels)
-            lo = normlabels.min(axis=0)
-            hi = normlabels.max(axis=0)
-            normlabels = (normlabels - lo) / (hi - lo)
-            self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
-            self.reference_spectrum = self.training_spectra[self.reference_index, :]
-            self.reference_label = self.training_labels[self.reference_index]
-            self.training_label_range = hi - lo
-        else:
-            self.reference_index = None
-            self.reference_spectrum = np.zeros(self.n_wave)
-            self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
-            self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
         
     def reset(self):
         """Zero out the coeffs, design_matrix, and Ainv.  Useful in case the
@@ -117,8 +122,8 @@ class PSIModel(object):
 
     def configure_features(self, **extras):
         """Here you set up which terms to use.  This is set up to include all
-        linear and quadratic (cross) terms.  This should be overridden by
-        subclasses
+        linear and quadratic (cross) terms for all label_names fields.  This
+        should be overridden by subclasses.
         """
         try:
             qinds = combinations_with_replacement(range(self.n_labels), r=2)
@@ -128,7 +133,7 @@ class PSIModel(object):
         except(AttributeError):
             # Labels not set yet.
             pass
-            
+
     def labels_to_features(self, labels):
         """Construct a feature vector from a label vector.  This is a simple
         quadratic model, and a placeholder.  It should be reimplemented by
@@ -145,6 +150,11 @@ class PSIModel(object):
         return np.hstack([linear, quad])
 
     def inside_hull(self, labels):
+        """This method checks whether a requested set of labels is inside the
+        convex hull of the training data.  Returns a bool.  This method relies
+        on Delauynay Triangulation and is thus exceedlingly slow for large
+        dimensionality.
+        """
         L = flatten_struct(self.training_labels, use_labels=self.label_names)
         l = flatten_struct(labels, use_labels=self.label_names)
         hull = Delaunay(L.T)
@@ -182,17 +192,17 @@ class PSIModel(object):
             # logify before training
             spec = np.log(spec)
         if (not self.has_errors) or (self.unweighted):
-            return self.ordinary(spec)
+            return self.ordinary_least_squares(spec)
         else:
             weights = self.training_weights[:, ind_wave] * self.reference_spectrum[ind_wave]**2
-            return self.weighted(spec, weights)
+            return self.weighted_least_squares(spec, weights)
 
-    def ordinary(self, spec):
+    def ordinary_least_squares(self, spec):
         """OLS
         """
         return np.dot(self.Ainv, np.dot(self.X.T, spec))
 
-    def weighted(self, spec, weights):
+    def weighted_least_squares(self, spec, weights):
         """Weighted least-squares. Should use woodbury matrix lemma here to
         update self.Ainv instead of reinverting each time.
         """
@@ -237,15 +247,48 @@ class PSIModel(object):
         return len(self.features) + int(not self.normalize_labels)
         
 
-class MILESInterpolator(PSIModel):
+class SimplePSIModel(PSIModel):
+    """A simpler version of PSIModel that overrides the ``labels_to_features``,
+    ``rescale``, ``configure_features``, and ``build_training_info`` methods to
+    be simpler and more expressive.  In this model labels and features can be
+    accessed and created by name, instead of needing to have properly ordered
+    vectors.  Furthermore not all labels need to be used.
+    """
 
+    def labels_to_features(self, labels):
+        """Construct a feature vector from a label structure. This uses
+        features that are named by hand, and specified in the ``features``
+        attribute as a tuple of lists.  This method is slower than the
+        ``einsum`` based method of PSIModel, but allows for more flexibility
+        and interpretability.
+
+        :param labels:
+            Label vector(s).  Structured array of length nobj, with nlabels
+            fields.
+
+        :returns X:
+            Design matrix, ndarray of shape (nobj, nfeatures)
+        """
+        slabels = self.rescale(labels)
+        # add bias term if you didn't normalize the training data by
+        X = [np.ones(len(slabels))]
+        for feature in self.features:
+            X.append(np.product(np.array([slabels[lname]
+                                          for lname in feature]), axis=0))
+        return np.array(X).T
 
     def rescale(self, label):
         nlabel = label.copy()
         nlabel['logt'] -= 3.7617
         nlabel['logg'] -= 4.44
         return nlabel
-    
+
+    def build_training_info(self):
+        self.reference_index = None
+        self.reference_spectrum = self.training_spectra.std(axis=0)
+        self.reference_label = np.zeros(self.n_labels)
+        self.training_label_range = 1.0
+
     def configure_features(self, **extras):
         """Features based on Eq. 3 of Prugniel 2011, where they are called
         "developments".
@@ -275,75 +318,6 @@ class MILESInterpolator(PSIModel):
                     )
         self.features = features
 
-    def labels_to_features(self, labels):
-        """Construct a feature vector from a label structure. This uses
-        features that are named by hand, and specified in the ``features``
-        attribute as a tuple of lists.  This method is slower than the
-        ``einsum`` based method, but allows for more flexibility and
-        interpretability.
-
-        :param labels:
-            Label vector(s).  Structured array of length nobj, with nlabels
-            fields.
-
-        :returns X:
-            Design matrix, ndarray of shape (nobj, nfeatures)
-        """
-        slabels = self.rescale(labels)
-        # add bias term if you didn't normalize the training data by
-        X = [np.ones(len(slabels))]
-        for feature in self.features:
-            X.append(np.product(np.array([slabels[lname]
-                                          for lname in feature]), axis=0))
-        return np.array(X).T
-
-    def load_training_data(self, training_data='', **extras):
-        """Read an HDF5 file with `parameters` a structured ndarray and
-        `spectra` an ndarray.  Convert to a structured array of labels of
-        length `ntrain` with `nlabel` fields. and an ndarray of training
-        spectra of shape (nwave, ntrain).  Optionally subtract off the median
-        label and spectrum.
-        """
-        self.has_errors = False
-        with h5py.File(training_data, "r") as f:
-            self.training_spectra = f['spectra'][:]
-            self.training_labels = f['parameters'][:]
-            self.wavelengths = f['wavelengths'][:]
-            try:
-                self.training_weights = 1/(f['uncertainty'][:]**2)
-                self.has_errors = True
-            except:
-                pass
-            ancillary = f['ancillary'][:]
-        # add and rename labels here.  Note that not all labels need to be or
-        # will be used in the feature generation
-        newfield = ['logt', 'miles_id']
-        newdata = [np.log10(self.training_labels['teff']), ancillary['miles_id']]
-        self.training_labels = rfn.append_fields(self.training_labels,
-                                                 newfield, newdata, usemask=False)
-        try:
-            # assuming f_nu
-            fbol = np.trapz(self.training_spectra/self.wavelengths**2, self.wavelengths)
-            newfield = ['logl', 'luminosity', 'fbol']
-            newdata = [ancillary['logl'], 10**ancillary['logl'], fbol]
-            self.training_labels = rfn.append_fields(self.training_labels,
-                                                     newfield, newdata, usemask=False)            
-        except:
-            pass
-
-    def renormalize_training_spectra(self, normwave=None, bylabel=None):
-        if normwave is not None:
-            ind_wave = np.argmin(np.abs(self.wavelengths - normwave))
-            self.training_spectra /= self.training_spectra[:, ind_wave][:, None]
-        elif bylabel is not None:
-            self.training_spectra /= self.training_labels[bylabel][:, None]
-
-    def build_training_info(self):
-        self.reference_index = None
-        self.reference_spectrum = self.training_spectra.std(axis=0)
-        self.reference_label = np.zeros(self.n_labels)
-        self.training_label_range = 1.0
-        
     @property
     def label_names(self):
         try:

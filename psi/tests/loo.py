@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 import matplotlib.pyplot as pl
-from model import MILESInterpolator
+from psi.library_models import MILESInterpolator
 from badstar import allbadstars
 
 # The PSI Model
@@ -135,7 +135,7 @@ filt = observate.load_filters(['hipparcos_V', 'hipparcos_B'])
 pmags_actual = observate.getSED(psi.wavelengths, psi.training_spectra, filterlist=filt)
 pmags_predicted = observate.getSED(psi.wavelengths, predicted, filterlist=filt)
 # Compare colors to observations
-mid, b, v = np.genfromtxt('../data/tycho2_b_v.dat', unpack=True)
+mid, b, v = np.genfromtxt('bv.dat', unpack=True)
 bv = b - v
 mid = mid.astype(int)
 inds = np.zeros(len(mid)) - 1
