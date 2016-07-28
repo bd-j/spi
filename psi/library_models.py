@@ -56,11 +56,6 @@ class CKCInterpolator(SimplePSIModel):
             self.training_spectra = f['spectra'][:]
             self.training_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
-            try:
-                self.training_weights = 1/(f['uncertainty'][:]**2)
-                self.has_errors = True
-            except:
-                pass
         try:
             # assuming f_nu
             fbol = np.trapz(self.training_spectra/self.wavelengths**2, self.wavelengths)
