@@ -319,7 +319,7 @@ class SimplePSIModel(PSIModel):
         self.features = features
 
     @property
-    def label_names(self):
+    def used_labels(self):
         try:
             used_labels = np.unique([n for f in self.features for n in f])
             return tuple(used_labels)

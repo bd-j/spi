@@ -6,6 +6,12 @@ from .model import SimplePSIModel
 
 __all__ = ["MILESInterpolator", "CKCInterpolator"]
 
+lightspeed = 2.998e18  # AA/s
+log_rsun_cgs = np.log10(6.955) + 10
+log_lsun_cgs = np.log10(3.839) + 33
+log_SB_cgs = np.log10(5.670367e-5)
+log_SB_solar = log_SB_cgs + 2 * log_rsun_cgs - log_lsun_cgs
+
 
 class MILESInterpolator(SimplePSIModel):
 
@@ -57,11 +63,18 @@ class CKCInterpolator(SimplePSIModel):
             self.training_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
         try:
-            # assuming f_nu
-            fbol = np.trapz(self.training_spectra/self.wavelengths**2, self.wavelengths)
-            newfield = ['fbol']
-            newdata = [fbol]
-            self.training_labels = rfn.append_fields(self.training_labels,
-                                                     newfield, newdata, usemask=False)            
+            # Renormalize so that all stars have logl=0
+            # The native unit of the C3K library is erg/s/cm^2/Hz/sr.
+            # We need to multply by 4pi (for the sr) and then by a radius
+            # (squared) that gets us to logL=0
+            # We can work out this radius from logL=log(4pi\sigma_SB) + 2logR + 4logT
+            logl, log4pi = 0.0, np.log10(4 * np.pi)
+            # This is in cm
+            twologR = (logl+log_lsun_cgs) - 4 * self.training_labels['logt'] - log_SB_cgs - log4pi
+
+            # Now multiply by 4piR^2, with another 4pi for the solid angle
+            self.training_spectra *= 10**(twologR + 2 * log4pi)
+            #self.spectral_units = 'erg/s/Hz/solar luminosity'
+
         except:
             pass
