@@ -6,8 +6,11 @@ except:
     pass
 import h5py
 import astropy.io.fits as pyfits
+from .utils import *
 
-__all__ = ["PSIModel", "SimplePSIModel"]
+
+__all__ = ["PSIModel", "SimplePSIModel", "FastPSIModel"]
+
 
 class PSIModel(object):
 
@@ -60,20 +63,10 @@ class PSIModel(object):
         """Calculate and store quantities about the training set that will be
         used to normalize labels and spectra.
         """
-        if self.normalize_labels:
-            normlabels = flatten_struct(self.training_labels)
-            lo = normlabels.min(axis=0)
-            hi = normlabels.max(axis=0)
-            normlabels = (normlabels - lo) / (hi - lo)
-            self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
-            self.reference_spectrum = self.training_spectra[self.reference_index, :]
-            self.reference_label = self.training_labels[self.reference_index]
-            self.training_label_range = hi - lo
-        else:
-            self.reference_index = None
-            self.reference_spectrum = np.zeros(self.n_wave)
-            self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
-            self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
+        self.reference_index = None
+        self.reference_spectrum = np.ones(self.n_wave)
+        self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
+        self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
 
     def restrict_sample(self, bounds=None, **extras):
         """Remove training objects that are not within some sample.
@@ -111,33 +104,19 @@ class PSIModel(object):
         """Rescale the labels.  This should be overridden by subclasses.  It
         will be applied to the training labels before training and to test
         labels when making a prediction.
-
-        For the particular rescaling given here, to reconstruct absolute labels
-        from a normalized label, use:
-            label = label_range * normed_label + reference_label
-            spectrum = normed_spectrum + reference_spectrum
         """
-        normlabels = flatten_struct(labels) - flatten_struct(self.reference_label)
-        return normlabels / flatten_struct(self.training_label_range)
+        raise(NotImplementedError)
 
     def configure_features(self, **extras):
         """Here you set up which terms to use.  This is set up to include all
         linear and quadratic (cross) terms for all label_names fields.  This
         should be overridden by subclasses.
         """
-        try:
-            qinds = combinations_with_replacement(range(self.n_labels), r=2)
-            qnames = combinations_with_replacement(self.label_names, r=2)
-            self.qinds = np.array(list(qinds))
-            self.features = (self.label_names + list(qnames))
-        except(AttributeError):
-            # Labels not set yet.
-            pass
+        raise(NotImplementedError)
 
     def labels_to_features(self, labels):
-        """Construct a feature vector from a label vector.  This is a simple
-        quadratic model, and a placeholder.  It should be reimplemented by
-        subclasses.
+        """Construct a feature vector from a label vector.  It should be
+        reimplemented by subclasses.
 
         :param labels:
             Label vector(s).  structured array 
@@ -145,9 +124,7 @@ class PSIModel(object):
         :returns X:
             Design matrix, ndarray of shape (nobj, nfeatures)
         """
-        linear = self.rescale(labels)
-        quad = np.einsum('...i,...j->...ij', linear, linear)[:, self.qinds[:, 0], self.qinds[:, 1]]
-        return np.hstack([linear, quad])
+        raise(NotImplementedError)
 
     def inside_hull(self, labels):
         """This method checks whether a requested set of labels is inside the
@@ -255,11 +232,22 @@ class SimplePSIModel(PSIModel):
     vectors.  Furthermore not all labels need to be used.
     """
 
+    def configure_features(self, **extras):
+        """Features based on Eq. 3 of Prugniel 2011, where they are called
+        "developments".
+        """
+        features = (['logt'], ['feh'],
+                    ['logg'], ['logt', 'logt'],
+                    #['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
+                    #['logt', 'feh'], ['logt', 'logg'],
+                    )
+        self.features = features
+
     def labels_to_features(self, labels):
         """Construct a feature vector from a label structure. This uses
         features that are named by hand, and specified in the ``features``
         attribute as a tuple of lists.  This method is slower than the
-        ``einsum`` based method of PSIModel, but allows for more flexibility
+        ``einsum`` based method of FastPSIModel, but allows for more flexibility
         and interpretability.
 
         :param labels:
@@ -270,7 +258,7 @@ class SimplePSIModel(PSIModel):
             Design matrix, ndarray of shape (nobj, nfeatures)
         """
         slabels = self.rescale(labels)
-        # add bias term if you didn't normalize the training data by
+        # add bias term
         X = [np.ones(len(slabels))]
         for feature in self.features:
             X.append(np.product(np.array([slabels[lname]
@@ -289,35 +277,6 @@ class SimplePSIModel(PSIModel):
         self.reference_label = np.zeros(self.n_labels)
         self.training_label_range = 1.0
 
-    def configure_features(self, **extras):
-        """Features based on Eq. 3 of Prugniel 2011, where they are called
-        "developments".
-        """
-        features = (['logt'], ['feh'],
-                    ['logg'], ['logt', 'logt'],
-                    #['logt', 'logt', 'logt'], ['logt', 'logt', 'logt', 'logt'],
-                    #['logt', 'feh'], ['logt', 'logg'],
-                    #['logt', 'logt', 'logg'],
-                    #['logt', 'logt', 'feh'],
-                    #['logg', 'logg'], ['feh', 'feh'],
-                    #['logt', 'logt', 'logt', 'logt', 'logt'],
-                    #['logt', 'logg', 'logg'],
-                    #['logg', 'logg', 'logg'],
-                    #['feh', 'feh'],
-                    #['logt', 'feh', 'feh'],
-                    #['logg', 'feh'],
-                    #['logg', 'logg', 'feh'],
-                    #['logg', 'feh', 'feh'],
-                    #['teff'], ['teff', 'teff']
-                    # The following features are directly from the ulyss code for v3 miles:
-                    #['logt', 'logt', 'logt', 'logg'],
-                    #['logt', 'logt', 'logt', 'logt', 'logg'],
-                    #['logt', 'logt', 'logt', 'feh'],
-                    #['logt', 'logt', 'logg', 'logg'],
-                    #['logt', 'logt', 'logg', 'logg', 'logg']
-                    )
-        self.features = features
-
     @property
     def used_labels(self):
         try:
@@ -327,38 +286,67 @@ class SimplePSIModel(PSIModel):
             return []
 
 
-def flatten_struct(struct, use_labels=None):
-    """This is slow, should be replaced with a view-based method.
-    """
-    if use_labels is None:
-        return np.array(struct.tolist())
-    else:
-        return np.array([struct[n] for n in use_labels])
+class FastPSIModel(PSIModel):
 
-
-def dict_struct(struct):
-    """Convert from a structured array to a dictionary.  This shouldn't really
-    be necessary.
-    """
-    return dict([(n, struct[n]) for n in struct.dtype.names])
-
-    
-def make_struct(**label_dict):
-        """Convert from a dictionary of labels to a numpy structured array
+    def configure_features(self, **extras):
+        """Here you set up which terms to use.  This is set up to include all
+        linear and quadratic (cross) terms for all label_names fields.  This
+        should be overridden by subclasses.
         """
-        dtype = np.dtype([(n, np.float) for n in label_dict.keys()])
         try:
-            nl = len(label_dict[label_dict.keys()[0]])
-        except:
-            nl = 1
-        labels = np.zeros(nl, dtype=dtype)
-        for n in label_dict.keys():
-            labels[n] = label_dict[n]
-        return labels
- 
+            qinds = combinations_with_replacement(range(self.n_labels), r=2)
+            qnames = combinations_with_replacement(self.label_names, r=2)
+            self.qinds = np.array(list(qinds))
+            self.features = (self.label_names + list(qnames))
+        except(AttributeError):
+            # Labels not set yet.
+            pass
 
-def within(bound, value):
-    return (value < bound[1]) & (value > bound[0])
+     def labels_to_features(self, labels):
+        """Construct a feature vector from a label vector.  This is a simple
+        quadratic model, and a placeholder.  It should be reimplemented by
+        subclasses.
+
+        :param labels:
+            Label vector(s).  structured array 
+
+        :returns X:
+            Design matrix, ndarray of shape (nobj, nfeatures)
+        """
+        linear = self.rescale(labels)
+        quad = np.einsum('...i,...j->...ij', linear, linear)[:, self.qinds[:, 0], self.qinds[:, 1]]
+        return np.hstack([linear, quad])
+
+    def build_training_info(self):
+        """Calculate and store quantities about the training set that will be
+        used to normalize labels and spectra.
+        """
+        if self.normalize_labels:
+            normlabels = flatten_struct(self.training_labels)
+            lo = normlabels.min(axis=0)
+            hi = normlabels.max(axis=0)
+            normlabels = (normlabels - lo) / (hi - lo)
+            self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
+            self.reference_spectrum = self.training_spectra[self.reference_index, :]
+            self.reference_label = self.training_labels[self.reference_index]
+            self.training_label_range = hi - lo
+        else:
+            self.reference_index = None
+            self.reference_spectrum = np.zeros(self.n_wave)
+            self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
+            self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
+
+    def rescale(self, labels, **extras):
+        """Rescale the labels. It will be applied to the training labels before
+        training and to test labels when making a prediction.
+
+        For the particular rescaling given here, to reconstruct absolute labels
+        from a normalized label, use:
+            label = label_range * normed_label + reference_label
+            spectrum = normed_spectrum + reference_spectrum
+        """
+        normlabels = flatten_struct(labels) - flatten_struct(self.reference_label)
+        return normlabels / flatten_struct(self.training_label_range)
 
 
 if __name__ == "__main__":
