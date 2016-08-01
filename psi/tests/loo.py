@@ -4,9 +4,12 @@ import matplotlib.pyplot as pl
 from psi.library_models import MILESInterpolator
 from badstar import allbadstars
 
+import time
+ts = time.time()
+
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
-fgk_bounds = {'teff': (3000.0, 10000.0)}
+fgk_bounds = {'teff': (4200.0, 9000.0)}
 badstar_ids = np.array(allbadstars.tolist())
 
 spi = MILESInterpolator(training_data=mlib, normalize_labels=False)
@@ -24,20 +27,20 @@ predicted = np.zeros([ntrain, spi.n_wave])
 
 #sys.exit()
 # Retrain and predict after leaving one out
-for i in range(ntrain):
+for i, j in enumerate(spi.training_indices.copy()):
     if (i % 10) == 0: print(i)
     # get full sample and the parameters of the star to leave out
-    spi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_ids})
-    spec = spi.training_spectra[i,:]
-    tlabels = spi.training_labels[i]
+    spec = spi.library_spectra[j,:]
+    tlabels = spi.library_labels[j]
     labels = dict([(n, tlabels[n]) for n in spi.label_names])
     # leave one out and train
-    spi.leave_out(i)
+    spi.library_mask[j] = False
     spi.train()
     predicted[i, :] = spi.get_star_spectrum(**labels)
-
+    spi.library_mask[j] = True
+    
 # reload the full training set
-spi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_ids})
+# spi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_ids})
 
 # get fractional residuals
 wmin, wmax = 3800, 7200
@@ -58,7 +61,7 @@ sax.set_xlabel('$\lambda (\AA)$')
 sax.set_ylabel('Fractional RMS (%)')
 sax.set_ylim(0, 100)
 sfig.show()
-sfig.savefig('figures/residual_spectrum.pdf')
+sfig.savefig('figures/residual_spectrum_{}.pdf'.fromat(ts))
 
 # Plot a map of total variance as a function of label
 l1, l2, l3 = 'logt', 'feh', 'logg'
@@ -75,7 +78,7 @@ cbar = pl.colorbar(sc)
 cbar.ax.set_ylabel('Fractional RMS (%)')
 [ax.invert_xaxis() for ax in mapaxes]
 mapfig.show()                   
-mapfig.savefig('figures/residual_map.pdf')
+mapfig.savefig('figures/residual_map_{}.pdf'.format(ts))
 
 # Plot a map of line residual as a function of label
 showlines = lines.keys()
@@ -98,7 +101,7 @@ for line in showlines:
     cbar.ax.set_ylabel('Residual @ {}'.format(line))
     [ax.invert_xaxis() for ax in mapaxes]
     mapfig.show()
-    mapfig.savefig('figures/residual_{}_map.pdf'.format(line))
+    mapfig.savefig('figures/residual_{}_map_{}.pdf'.format(line, ts))
 
 # Plot cumulative number as a function of RMS
 rms = np.sqrt(var_total)*100
@@ -110,7 +113,7 @@ cax.set_ylabel('N(<RMS)')
 cax.set_xlabel('Fractional RMS (%)')
 cax.set_xlim(0,100)
 cfig.show()
-cfig.savefig('figures/cumlative_rms.pdf')
+cfig.savefig('figures/cumlative_rms_{}.pdf'.fromat(ts))
 
 badfig, badaxes = pl.subplots(10, 1, sharex=True, figsize=(6, 12))
 for i, bad in enumerate(oo[-10:][::-1]):
@@ -126,7 +129,7 @@ for i, bad in enumerate(oo[-10:][::-1]):
         ax.legend(loc=0, prop={'size':8})
     if i < 9:
         ax.set_xticklabels([])
-badfig.savefig('figures/worst10.pdf')
+badfig.savefig('figures/worst10_{}.pdf'.format(ts))
 
 # B-V colors
 from sedpy import observate
@@ -160,7 +163,7 @@ ax.plot(spi.training_labels['logt'], np.diff(pmags_actual, axis=1) - np.diff(pma
 ax.set_xlabel('logt')
 ax.set_ylabel('$\Delta(B-V)$')
 ax.legend(loc=0)
-fig.savefig('figures/B-V.pdf')
+fig.savefig('figures/B-V_{}.pdf'.format(ts))
 
 pfig, pax = pl.subplots(2, 1)
 pax[0].plot(spi.training_labels['logt'][inds[good]], np.diff(pmags_actual, axis=1)[inds[good], 0] - bv[good],

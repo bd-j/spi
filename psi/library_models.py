@@ -23,11 +23,11 @@ class MILESInterpolator(SimplePSIModel):
         """
         self.has_errors = False
         with h5py.File(training_data, "r") as f:
-            self.training_spectra = f['spectra'][:]
-            self.training_labels = f['parameters'][:]
+            self.library_spectra = f['spectra'][:]
+            self.library_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
             try:
-                self.training_weights = 1/(f['uncertainty'][:]**2)
+                self.library_weights = 1/(f['uncertainty'][:]**2)
                 self.has_errors = True
             except:
                 pass
@@ -35,18 +35,19 @@ class MILESInterpolator(SimplePSIModel):
         # add and rename labels here.  Note that not all labels need to be or
         # will be used in the feature generation
         newfield = ['logt', 'miles_id']
-        newdata = [np.log10(self.training_labels['teff']), ancillary['miles_id']]
-        self.training_labels = rfn.append_fields(self.training_labels,
+        newdata = [np.log10(self.library_labels['teff']), ancillary['miles_id']]
+        self.library_labels = rfn.append_fields(self.library_labels,
                                                  newfield, newdata, usemask=False)
         try:
             # assuming f_nu
-            fbol = np.trapz(self.training_spectra/self.wavelengths**2, self.wavelengths)
+            fbol = np.trapz(self.library_spectra/self.wavelengths**2, self.wavelengths)
             newfield = ['logl', 'luminosity', 'fbol']
             newdata = [ancillary['logl'], 10**ancillary['logl'], fbol]
-            self.training_labels = rfn.append_fields(self.training_labels,
+            self.library_labels = rfn.append_fields(self.library_labels,
                                                      newfield, newdata, usemask=False)            
         except:
             pass
+        self.reset_mask()
 
 
 class CKCInterpolator(SimplePSIModel):
@@ -60,14 +61,9 @@ class CKCInterpolator(SimplePSIModel):
         # Read the HDF5 file
         self.has_errors = False
         with h5py.File(training_data, "r") as f:
-            self.training_spectra = f['spectra'][:]
-            self.training_labels = f['parameters'][:]
+            self.library_spectra = f['spectra'][:]
+            self.library_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
-
-        # remove zero spectra
-        bad = np.where(np.max(self.training_spectra, axis=-1) <= 0)
-        if len(bad[0]) > 0:
-            self.leave_out(bad[0])
 
         # renormalize spectra to Lbol = 1 L_sun
         try:
@@ -78,11 +74,18 @@ class CKCInterpolator(SimplePSIModel):
             # We can work out this radius from logL=log(4pi\sigma_SB) + 2logR + 4logT
             logl, log4pi = 0.0, np.log10(4 * np.pi)
             # This is in cm
-            twologR = (logl+log_lsun_cgs) - 4 * self.training_labels['logt'] - log_SB_cgs - log4pi
+            twologR = (logl+log_lsun_cgs) - 4 * self.library_labels['logt'] - log_SB_cgs - log4pi
 
             # Now multiply by 4piR^2, with another 4pi for the solid angle
-            self.training_spectra *= 10**(twologR[:, None] + 2 * log4pi)
+            self.library_spectra *= 10**(twologR[:, None] + 2 * log4pi)
             #self.spectral_units = 'erg/s/Hz/solar luminosity'
 
         except:
             print('Did not renormalize spectra by luminosity.')
+
+        self.reset_mask()
+        # remove zero spectra
+        bad = np.where(np.max(self.library_spectra, axis=-1) <= 0)
+        if len(bad[0]) > 0:
+            self.leave_out(bad[0])
+        
