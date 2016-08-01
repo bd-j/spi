@@ -57,11 +57,19 @@ class CKCInterpolator(SimplePSIModel):
         length `ntrain` with `nlabel` fields. and an ndarray of training
         spectra of shape (nwave, ntrain).
         """
+        # Read the HDF5 file
         self.has_errors = False
         with h5py.File(training_data, "r") as f:
             self.training_spectra = f['spectra'][:]
             self.training_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
+
+        # remove zero spectra
+        bad = np.where(np.max(self.training_spectra, axis=-1) <= 0)
+        if len(bad[0]) > 0:
+            self.leave_out(bad[0])
+
+        # renormalize spectra to Lbol = 1 L_sun
         try:
             # Renormalize so that all stars have logl=0
             # The native unit of the C3K library is erg/s/cm^2/Hz/sr.
@@ -73,8 +81,8 @@ class CKCInterpolator(SimplePSIModel):
             twologR = (logl+log_lsun_cgs) - 4 * self.training_labels['logt'] - log_SB_cgs - log4pi
 
             # Now multiply by 4piR^2, with another 4pi for the solid angle
-            self.training_spectra *= 10**(twologR + 2 * log4pi)
+            self.training_spectra *= 10**(twologR[:, None] + 2 * log4pi)
             #self.spectral_units = 'erg/s/Hz/solar luminosity'
 
         except:
-            pass
+            print('Did not renormalize spectra by luminosity.')
