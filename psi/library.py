@@ -69,6 +69,13 @@ class TrainingSet(object):
         # self.training_spectra = np.delete(self.training_spectra, inds, axis=0)
         # self.training_labels = np.delete(self.training_labels, inds)
 
+    def delete_masked(self):
+        self.library_spectra = self.library_spectra[self.library_mask, :]
+        self.library_labels = self.library_labels[self.library_mask]
+        if self.has_errors:
+            self.library_weights = self.library_weights[self.library_mask, :]
+        self.reset_mask()
+
     def renormalize_library_spectra(self, normwave=None, bylabel=None):
         """Renormalize the spectra by some quantity.
         """
@@ -81,11 +88,11 @@ class TrainingSet(object):
     @property
     def n_library(self):
         return len(self.library_labels)
-            
+
     @property
     def training_indices(self):
         return np.where(self.library_mask)[0]
-        
+
     @property
     def training_spectra(self):
         return self.library_spectra[self.library_mask, :]
@@ -96,4 +103,4 @@ class TrainingSet(object):
 
     @property
     def training_weights(self):
-        return self.library_weights[self.library_mask, :]        
+        return self.library_weights[self.library_mask, :]

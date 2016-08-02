@@ -81,12 +81,15 @@ class PSIModel(TrainingSet):
             self.build_training_info()
             self.construct_design_matrix()
         if pool is None:
-            M = map
+            if inds is None:
+                inds = slice(None)
+            self.coeffs[inds,:] = self.train_one_wave(inds).T
         else:
             M = pool.map
-        if inds is None:
-            inds = range(self.n_wave)
-        self.coeffs[inds, :] = np.array(M(self.train_one_wave,  inds))
+            if inds is None:
+                inds = range(self.n_wave)
+            self.coeffs[inds, :] = np.array(M(self.train_one_wave,  inds))
+
         self.trained[inds] = True
 
     def train_one_wave(self, ind_wave):
@@ -256,6 +259,18 @@ class FastPSIModel(PSIModel):
         quad = np.einsum('...i,...j->...ij', linear, linear)[:, self.qinds[:, 0], self.qinds[:, 1]]
         return np.hstack([linear, quad])
 
+    def rescale_labels(self, labels, **extras):
+        """Rescale the labels. It will be applied to the training labels before
+        training and to test labels when making a prediction.
+
+        For the particular rescaling given here, to reconstruct absolute labels
+        from a normalized label, use:
+            label = label_range * normed_label + reference_label
+            spectrum = normed_spectrum + reference_spectrum
+        """
+        normlabels = flatten_struct(labels) - flatten_struct(self.reference_label)
+        return normlabels / flatten_struct(self.training_label_range)
+
     def build_training_info(self):
         """Calculate and store quantities about the training set that will be
         used to normalize labels and spectra.
@@ -274,18 +289,6 @@ class FastPSIModel(PSIModel):
             self.reference_spectrum = np.zeros(self.n_wave)
             self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
             self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
-
-    def rescale_labels(self, labels, **extras):
-        """Rescale the labels. It will be applied to the training labels before
-        training and to test labels when making a prediction.
-
-        For the particular rescaling given here, to reconstruct absolute labels
-        from a normalized label, use:
-            label = label_range * normed_label + reference_label
-            spectrum = normed_spectrum + reference_spectrum
-        """
-        normlabels = flatten_struct(labels) - flatten_struct(self.reference_label)
-        return normlabels / flatten_struct(self.training_label_range)
 
 
 if __name__ == "__main__":

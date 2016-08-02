@@ -25,7 +25,6 @@ spi.select(training_data=mlib, bounds=fgk_bounds, badvalues={'miles_id':badstar_
 ntrain = spi.n_train
 predicted = np.zeros([ntrain, spi.n_wave])
 
-#sys.exit()
 # Retrain and predict after leaving one out
 for i, j in enumerate(spi.training_indices.copy()):
     if (i % 10) == 0: print(i)
@@ -61,7 +60,7 @@ sax.set_xlabel('$\lambda (\AA)$')
 sax.set_ylabel('Fractional RMS (%)')
 sax.set_ylim(0, 100)
 sfig.show()
-sfig.savefig('figures/residual_spectrum_{}.pdf'.fromat(ts))
+sfig.savefig('figures/residual_spectrum_{}.pdf'.format(ts))
 
 # Plot a map of total variance as a function of label
 l1, l2, l3 = 'logt', 'feh', 'logg'
@@ -113,7 +112,7 @@ cax.set_ylabel('N(<RMS)')
 cax.set_xlabel('Fractional RMS (%)')
 cax.set_xlim(0,100)
 cfig.show()
-cfig.savefig('figures/cumlative_rms_{}.pdf'.fromat(ts))
+cfig.savefig('figures/cumlative_rms_{}.pdf'.format(ts))
 
 badfig, badaxes = pl.subplots(10, 1, sharex=True, figsize=(6, 12))
 for i, bad in enumerate(oo[-10:][::-1]):

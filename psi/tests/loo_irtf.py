@@ -1,8 +1,10 @@
-import sys
+import sys, time
 import numpy as np
 import matplotlib.pyplot as pl
 from psi.library_models import MILESInterpolator
 from badstar import allbadstars
+
+ts = time.time()
 
 def reselect(spi, mlib, bad_ids, bounds, normwave=1.0):
     """Select a training set using bounds and removing bad stars listed by miles_id
