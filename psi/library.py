@@ -30,7 +30,7 @@ class TrainingSet(object):
         self.library_mask = np.ones(self.n_library, dtype=bool)
 
     def select(self, training_data=None, bounds=None, badvalues=None,
-               **extras):
+               delete=False, **extras):
         """Load and select a subsample of a particular library of training data.
         """
         if training_data is not None:
@@ -45,6 +45,9 @@ class TrainingSet(object):
                 inds += [self.library_labels[name].tolist().index(b) for b in bad
                         if b in self.library_labels[name]]
             self.leave_out(np.array(inds).flat)
+
+        if delete:
+            self.delete_masked()
 
         self.build_training_info()
         self.reset()

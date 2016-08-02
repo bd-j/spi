@@ -145,7 +145,7 @@ class PSIModel(TrainingSet):
     
     @property
     def label_names(self):
-        return self.training_labels.dtype.names
+        return self.library_labels.dtype.names
     
     @property
     def n_labels(self):
@@ -153,11 +153,11 @@ class PSIModel(TrainingSet):
 
     @property
     def n_train(self):
-        return self.training_spectra.shape[0]
+        return self.training_labels.shape[0]
 
     @property
     def n_wave(self):
-        return self.training_spectra.shape[1]
+        return self.library_spectra.shape[1]
 
     @property
     def n_features(self):

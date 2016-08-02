@@ -10,11 +10,11 @@ def reselect(spi, mlib, bad_ids, bounds, normwave=1.0):
     """Select a training set using bounds and removing bad stars listed by miles_id
     """
     spi.load_training_data(training_data=mlib)
+    spi.renormalize_library_spectra(bylabel='luminosity')
     ind = [spi.training_labels['miles_id'].tolist().index(b) for b in bad_ids
            if b in spi.training_labels['miles_id']]
     spi.leave_out(ind)
     spi.restrict_sample(bounds=bounds)
-    spi.renormalize_library_spectra(bylabel='luminosity')
     return spi
 
 # The PSI Model
@@ -35,7 +35,7 @@ predicted = np.zeros([ntrain, spi.n_wave])
 
 #sys.exit()
 # Retrain and predict after leaving one out
-for i, j in enumerate(spi.training_indices.copy()):
+for i, j in enumerate(spi.training_indices.copy()[::3]):
     if (i % 10) == 0: print(i)
     # get full sample and the parameters of the star to leave out
     # spi = reselect(spi, mlib, badstar_ids, fgk_bounds)
