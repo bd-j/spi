@@ -13,10 +13,8 @@ __all__ = ["PSIModel", "SimplePSIModel", "FastPSIModel"]
 
 class PSIModel(TrainingSet):
 
-    def __init__(self, normalize_labels=False, unweighted=True,
-                 logify_flux=False, **kwargs):
+    def __init__(self, unweighted=True, logify_flux=False, **kwargs):
         self.unweighted = unweighted
-        self.normalize_labels = normalize_labels
         self.logify_flux = logify_flux
         self.configure_features(**kwargs)
         self.select(**kwargs)
@@ -163,7 +161,7 @@ class PSIModel(TrainingSet):
 
     @property
     def n_features(self):
-        return len(self.features) + int(not self.normalize_labels)
+        return len(self.features) + 1
         
 
 class SimplePSIModel(PSIModel):
@@ -273,22 +271,18 @@ class FastPSIModel(PSIModel):
 
     def build_training_info(self):
         """Calculate and store quantities about the training set that will be
-        used to normalize labels and spectra.
+        used to normalize labels and spectra.  Here we try to normalize all
+        labels to the range [-1, 1], but this is probably broken.
         """
-        if self.normalize_labels:
-            normlabels = flatten_struct(self.training_labels)
-            lo = normlabels.min(axis=0)
-            hi = normlabels.max(axis=0)
-            normlabels = (normlabels - lo) / (hi - lo)
-            self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
-            self.reference_spectrum = self.training_spectra[self.reference_index, :]
-            self.reference_label = self.training_labels[self.reference_index]
-            self.training_label_range = hi - lo
-        else:
-            self.reference_index = None
-            self.reference_spectrum = np.zeros(self.n_wave)
-            self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
-            self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
+
+        normlabels = flatten_struct(self.training_labels)
+        lo = normlabels.min(axis=0)
+        hi = normlabels.max(axis=0)
+        normlabels = (normlabels - lo) / (hi - lo)
+        self.reference_index = np.argmin(np.sum((normlabels - 0.5)**2, axis=1))
+        self.reference_spectrum = self.training_spectra[self.reference_index, :]
+        self.reference_label = self.training_labels[self.reference_index]
+        self.training_label_range = hi - lo
 
 
 if __name__ == "__main__":

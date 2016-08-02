@@ -12,7 +12,7 @@ mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
 fgk_bounds = {'teff': (4200.0, 9000.0)}
 badstar_ids = np.array(allbadstars.tolist())
 
-spi = MILESInterpolator(training_data=mlib, normalize_labels=False)
+spi = MILESInterpolator(training_data=mlib)
 spi.features = (['logt'], ['feh'], ['logg'],
                 ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
                 ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
@@ -45,7 +45,7 @@ for i, j in enumerate(spi.training_indices.copy()):
 wmin, wmax = 3800, 7200
 imin = np.argmin(np.abs(spi.wavelengths - wmin))
 imax = np.argmin(np.abs(spi.wavelengths - wmax))
-delta = predicted/spi.training_spectra - 1.0
+delta = predicted / spi.training_spectra - 1.0
 var_spectrum = delta.var(axis=0)
 var_total = delta[:, imin:imax].var(axis=1)
 lines, indlines = {'Ha':6563., 'NaD': 5897.0, 'CaK': 3933.0, 'CaH': 3968, 'Mg5163':5163.1}, {}

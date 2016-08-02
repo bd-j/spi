@@ -14,13 +14,13 @@ def reselect(spi, mlib, bad_ids, bounds, normwave=1.0):
            if b in spi.training_labels['miles_id']]
     spi.leave_out(ind)
     spi.restrict_sample(bounds=bounds)
-    spi.renormalize_training_spectra(bylabel='luminosity')
+    spi.renormalize_library_spectra(bylabel='luminosity')
     return spi
 
 # The PSI Model
 mlib = '/Users/bjohnson/Projects/psi/data/irtf/irtf_prugniel_extended.h5'
-fgk_bounds = {'teff': (3000.0, 10000.0)}
-spi = MILESInterpolator(training_data=mlib, normalize_labels=False)
+fgk_bounds = {'teff': (4200.0, 9000.0)}
+spi = MILESInterpolator(training_data=mlib)
 badstar_ids = np.array(allbadstars.tolist())
 spi.features = (['logt'], ['feh'], ['logg'],
                 ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
@@ -35,23 +35,24 @@ predicted = np.zeros([ntrain, spi.n_wave])
 
 #sys.exit()
 # Retrain and predict after leaving one out
-for i in range(ntrain):
+for i, j in enumerate(spi.training_indices.copy()):
     if (i % 10) == 0: print(i)
     # get full sample and the parameters of the star to leave out
-    spi = reselect(spi, mlib, badstar_ids, fgk_bounds)
+    # spi = reselect(spi, mlib, badstar_ids, fgk_bounds)
     spec = spi.training_spectra[i,:]
     tlabels = spi.training_labels[i]
     labels = dict([(n, tlabels[n]) for n in spi.label_names])
     # leave one out and train
-    spi.leave_out(i)
+    spi.library_mask[j] = False
     spi.train()
     predicted[i, :] = spi.get_star_spectrum(**labels)
+    spi.library_mask[j] = True
 
 # reload the full training set
-spi = reselect(spi, mlib, badstar_ids, fgk_bounds)
+#spi = reselect(spi, mlib, badstar_ids, fgk_bounds)
 
 # get fractional residuals
-delta = predicted/spi.training_spectra - 1.0
+delta = predicted / spi.training_spectra - 1.0
 # get variance in good regions of the spectrum
 wave = spi.wavelengths
 wmin, wmax = 0.38, 2.4
