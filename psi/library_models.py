@@ -89,3 +89,18 @@ class CKCInterpolator(SimplePSIModel):
         if len(bad[0]) > 0:
             self.leave_out(bad[0])
         
+    def build_training_info(self):
+        self.reference_index = None
+        self.reference_spectrum = self.training_spectra.mean(axis=0)
+
+        self.label_range = {}
+        for l in self.label_names:
+            self.label_range[l] = np.array([self.training_labels[l].min(),
+                                            self.training_labels[l].max()])
+
+    def show_coeffs(self):
+        fscale = [np.diff(label_range[j]) for j in self.features[i]]
+        for i, f in enumerate(self.features):
+            fscale = [np.diff(self.label_range[l]) for l in f]
+            c = np.median(self.coeffs[:, i+1])
+            print(f, c, np.prod(fscale) * c)

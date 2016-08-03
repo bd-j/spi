@@ -23,10 +23,7 @@ class PSIModel(TrainingSet):
         """Calculate and store quantities about the training set that will be
         used to normalize labels and spectra.
         """
-        self.reference_index = None
         self.reference_spectrum = np.ones(self.n_wave)
-        self.reference_label = np.zeros(1, dtype=self.training_labels.dtype)
-        self.training_label_range = np.ones(1, dtype=self.training_labels.dtype)
         
     def reset(self):
         """Zero out the coeffs, design_matrix, and Ainv.  Useful in case the
@@ -214,8 +211,6 @@ class SimplePSIModel(PSIModel):
     def build_training_info(self):
         self.reference_index = None
         self.reference_spectrum = self.training_spectra.std(axis=0)
-        self.reference_label = np.zeros(self.n_labels)
-        self.training_label_range = 1.0
 
     @property
     def used_labels(self):
