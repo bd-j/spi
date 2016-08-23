@@ -97,7 +97,9 @@ class PSIModel(TrainingSet):
         if (not self.has_errors) or (self.unweighted):
             return self.ordinary_least_squares(spec)
         else:
-            weights = self.training_weights[:, ind_wave] * self.reference_spectrum[ind_wave]**2
+            weights = self.training_weights[:, ind_wave] #* self.reference_spectrum[ind_wave]**2
+            if self.logify_flux:
+                 weights *= spec**2
             return self.weighted_least_squares(spec, weights)
 
     def ordinary_least_squares(self, spec):
@@ -106,12 +108,16 @@ class PSIModel(TrainingSet):
         return np.dot(self.Ainv, np.dot(self.X.T, spec))
 
     def weighted_least_squares(self, spec, weights):
-        """Weighted least-squares. Should use woodbury matrix lemma here to
-        update self.Ainv instead of reinverting each time.
+        """Weighted least-squares.  Vectorized to work simultaneously on large
+        numbers of wavelengths
         """
-        Xp = np.dot(weights, self.X)
-        Ainv = inv(np.dot(Xp.T, Xp))
-        return np.dot(Ainv, np.dot(Xp.T, spec * weights))
+        ww = weights.T
+        wx = ww[:, :, None] * self.X
+
+        B = np.dot(self.X.T, weights * spec).T #nwave x nfeature
+        # This is the time suck
+        A = np.dot(self.X.T, wx).transpose(1,0,2) #nwave x nfeature x nfeature
+        return np.linalg.solve(A, B).T
 
     def get_star_spectrum(self, check_coverage=False, **kwargs):
         """Get an interpolated spectrum at the parameter values (labels)

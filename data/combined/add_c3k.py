@@ -4,91 +4,159 @@ import matplotlib.pyplot as pl
 import h5py
 
 from numpy.lib import recfunctions as rfn
-from scipy.spatial import Delaunay, ConvexHull
+from scipy.spatial import Delaunay
 
-from psi.library_models import SimplePSIModel, MILESInterpolator, CKCInterpolator
+from psi.library_models import SimplePSIModel
 from psi.utils import dict_struct, flatten_struct
+
+from prospect.utils.smoothing import smoothspec
+
+
+lightspeed = 2.998e18  # AA/s
+log_rsun_cgs = np.log10(6.955) + 10
+log_lsun_cgs = np.log10(3.839) + 33
+log_SB_cgs = np.log10(5.670367e-5)
+log_SB_solar = log_SB_cgs + 2 * log_rsun_cgs - log_lsun_cgs
+
 
 class CombinedInterpolator(SimplePSIModel):
 
-    def load_training_data(mlib='', clib='', cweight=1e-1):
-        # do MILES
-        self.has_errors = True
+    def load_training_data(library, ckc_weight=1e-1):
+        # --- read the data ---
         with h5py.File(mlib, "r") as f:
             self.wavelengths = f['wavelengths'][:]
-            spectra = f['spectra'][:]
-            labels = f['parameters'][:]
-            weights = 1.0 / (f['uncertainty'][:]**2)
+            self.library_spectra = f['spectra'][:]
+            self.labels = f['parameters'][:]
+            unc = f['uncertainties']
 
-        # add C3K
-        with h5py.File(clib, "r") as f:
-            assert np.allclose(self.wavelengths, f['wavelengths'][:])
-            self.spectra = np.vstack([spectra, f['spectra']])
-            norm = np.median(weights) * cweight
-            self.weights = np.vstack([weights,
-                                      norm/(f['uncertainties'][:]**2)])
-            # build a useful structured array and fill it
-            newlabels = np.zeros(len(f['parameters']),
-                                 dtype=slabels.dtype)
-            for l in labels.dtype.names:
-                if l in f['parameters'].dtype.names:
-                    newlabels[l] = f['parameters'][l]
+        # --- do relative weighting --
+        c3k = self.library_labels['miles_id'] == 'c3k'
+        # median miles uncertainty at each wavelength
+        umed = np.nanmedian(unc[~c3k, :], axis=0)
+        unc[c3k,:] = (umed / np.sqrt(ckc_weight))[None,:]
 
-            self.library_labels = np.hstack([labels,
-                                             newlabels])
+        self.library_weights = 1 / unc**2
+        self.has_errors = True
 
 
-def outside_hull(primary, secondary, use_labels=['logt', 'logg', 'feh']):
+def select_outside(miles, c3k, **extras):
+    """
+    :returns outside:
+        Boolean indicating whether an object in C3K is outside the convex hull
+        defined by the objects in MILES
+    """
+    # Read MILES
+    mlib = h5py.File(miles, 'r')
+    mparams = mlib['parameters'][:]
+    mparams = rfn.append_fields(mparams, ['logt'], [np.log10(mparams['teff'])],
+                                usemask=False)
+    mlib.close()
+
+    # Read C3K
+    try:
+        clib = h5py.File(c3k, 'r')
+        cparams = clib['parameters'][:]
+        bad = np.max(clib['spectra'], axis=-1) < 1e-32
+    except(IOError, AttributeError):
+        cparams = c3k
+        bad = np.zeros(len(cparams), dtype=bool)
+    
+    # Find C3K objects outside the MILES convex hull
+    inside = inside_hull(mparams, cparams, **extras)
+
+    return ~inside
+
+    
+def inside_hull(primary, secondary, use_labels=['logt', 'logg', 'feh'],
+                **extras):
     L = flatten_struct(primary, use_labels=use_labels)
     l = flatten_struct(secondary, use_labels=use_labels)
     hull = Delaunay(L.T)
     return hull.find_simplex(l.T) >= 0
 
 
-def logify_teff(params):
-    params = rfn.append_fields(params, ['logt'], [np.log10(params['teff'])],
-                                usemask=False)
-    return params
+def broaden(wave, spec, outwave=None, break_wave=7430., inres=1e4*2.355, **extras):
+    miles_resolution = 2.54 / 2.355 # in terms of dispersion
+    irtf_resolution = 2000.0 * 2.355 # in terms of dispersion
+    # MILES portion
+    miles = outwave < break_wave
+    flux_miles = [smoothspec(wave, s, miles_resolution,
+                            outwave=outwave[miles], smoothtype='lambda',
+                            fftsmooth=True) for s in spectra]
+    # IRTF portion
+    irtf = outwave >= break_wave
+    flux_irtf = [smoothspec(wave, s, irtf_resolution,
+                            outwave=outwave[irtf], smoothtype='R',
+                            fftsmooth=True, inres=inres) for s in spectra]
 
-def write_h5(outname, wave, spec, unc, label):
-    with h5py.File(outname, "w") as f:
-        w = f.create_dataset('wavelengths', data=wave)
-        s = f.create_dataset('spectra', data=spec)
-        l = f.create_dataset('parameters', data=label)
-        u = f.create_dataset('uncertainty', data=unc)
-
-def broaden(wave, spec, outwave=None):
-    pass
+    spec = np.hstack([np.array(flux_miles), np.array(flux_irtf)])
+        
+    return outwave, spec
 
 
-def rectify_c3k(c3k, selection, broaden_params):
+def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
+                outwave=None, outname=None, **broaden_kwargs):
+    """
+    """
+    # Read C3K
     with h5py.File(c3k, "r") as f:
-        spectra = f['spectra'][selection]
-        labels = f['parameters'][selection]
+        spectra = f['spectra'][:]
+        labels = f['parameters'][:]
         wave = f['wavelengths'][:]
-
-    # Renormalize
-    logl, log4pi = 0.0, np.log10(4 * np.pi)
-    twologR = (logl+log_lsun_cgs) - 4 * labels['logt'] - log_SB_cgs - log4pi
-    spectra *= 10**(twologR[:, None] + 2 * log4pi)
+    
     # Add new label info
+    nobj = len(labels)
     newcols = ['miles_id', 'logl', 'luminosity']
     newdata = [np.array(nobj * ['c3k']), np.zeros(nobj), np.ones(nobj)]
-    labels = rfn.append_fields(labels, newfield, newdata, usemask=False)
+    # Deal with oldstyle files that only have Z, not feh
+    if 'Z' in labels.dtype.names:
+        newcols += ['feh']
+        newdata += [np.log10(labels['Z']/0.0134)]
+    labels = rfn.append_fields(labels, newcols, newdata, usemask=False)
+    
+    # Ditch stars within the miles convex hull
+    if selection is None:
+        if miles is not None:
+            outside_hull = select_outside(miles, labels)
+            has_flux = np.max(spectra, axis=-1) > 1e-32
+            selection = outside_hull & has_flux
+        else:
+            selection = slice(None)
+    spectra = spectra[selection, :]
+    labels = labels[selection]
+
+    # Renormalize to Lsun/Hz/solar luminosity
+    logl, log4pi = 0.0, np.log10(4 * np.pi)
+    twologR = (logl+log_lsun_cgs) - 4 * labels['logt'] - log_SB_cgs - log4pi
+    spectra *= 10**(twologR[:, None] + 2 * log4pi - log_lsun_cgs)
+    
     # Broaden
-    w, spec = broaden(wave, spectra, **broaden_params)
+    if broaden:
+        w, spec = broaden(wave / 1e4, spectra, outwave=outwave, **broaden_kwargs)
+    else:
+        w = outwave
+        spec = np.array([np.interp(outwave, wave / 1e4, s) for s in spectra])
 
-    write_h5(outname, w, spec, unc, labels)
+    # Dummy uncertainties
+    unc = np.ones_like(spec)
+
+    if outname is not None:
+        write_h5(outname, w, spec, unc, labels)
+
+    return w, spec, unc, labels
 
 
-def rectify_miles(mlib, outname):
-    with h5py.File(mlib, "r") as f:
+
+def rectify_miles(miles, outname=None):
+    """
+    """
+    with h5py.File(miles, "r") as f:
         spectra = f['spectra'][:]
         labels = f['parameters'][:]
         wave = f['wavelengths'][:]
         ancillary = f['ancillary'][:]
         try:
-            unc = f['uncertainty'][:]
+            unc = f['uncertainties'][:]
         except:
             unc = np.ones_like(spectra)
 
@@ -97,42 +165,59 @@ def rectify_miles(mlib, outname):
                ancillary['logl'], 10**ancillary['logl']]
     labels = rfn.append_fields(labels, newfield, newdata, usemask=False)
 
-    #return wavelengths, spectra, unc, labels
-    write_h5(outname, wave, spectra, unc, labels)
+    if outname is not None:
+        write_h5(outname, wave, spectra, unc, labels)
+
+    return wave, spectra, unc, labels        
 
 
-def combine_libraries(mlib='', clib='', cweight=1e-1):
-    # MILES
-        
+def combine_miles_c3k(mlib='', clib='', c3k_weight=1e-1,
+                      outname='with_c3k_with_mdwarfs_culled_lib_snr_cut.h5',
+                      **kwargs):
+    """
+    """
+    # get MILES
+    mdat = rectify_miles(mlib, outname=None)
+    wave, spectra, unc, labels = mdat
+
     # add C3K
-    with h5py.File(clib, "r") as f:
-        assert np.allclose(wavelengths, f['wavelengths'][:])
-        spectra = np.vstack([spectra, f['spectra']])
-        # build a useful structured array and fill it
-        newlabels = np.zeros(len(f['parameters']),
-                             dtype=labels.dtype)
-        for l in labels.dtype.names:
-            if l in f['parameters'].dtype.names:
-                newlabels[l] = f['parameters'][l]
-        newlabels['miles_id'] = 'C3K'
-        labels = np.hstack([labels, newlabels])
+    cdat = rectify_c3k(clib, miles=mlib, outwave=wave, inres=1e4*2.35, **kwargs)
+    w, s, u, lab = cdat
+    assert np.allclose(wave, w)
+    spec = np.vstack([spectra, s])
+    # relative weighting
+    norm = np.nanmedian(1/unc**2) * c3k_weight
+    unc = np.vstack([unc, u / np.sqrt(norm)])
+    # build a useful structured array and fill it
+    newlabels = np.zeros(len(lab), dtype=labels.dtype)
+    for l in labels.dtype.names:
+            if l in lab.dtype.names:
+                newlabels[l] = lab[l]
+
+    labels = np.hstack([labels, newlabels])
+    write_h5(outname, wave, spec, unc, labels)
+    return wave, spec, unc, labels
+
+
+def write_h5(outname, wave, spec, unc, label):
+    with h5py.File(outname, "w") as f:
+        w = f.create_dataset('wavelengths', data=wave)
+        s = f.create_dataset('spectra', data=spec)
+        l = f.create_dataset('parameters', data=label)
+        u = f.create_dataset('uncertainties', data=unc)
 
 
 if __name__ == "__main__":
         
-    clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
+    #clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
+    clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
     mlibname = '/Users/bjohnson/Projects/psi/data/combined/with_mdwarfs_culled_lib_snr_cut.h5'
-    clib = h5py.File(clibname, 'r')
-    mlib = h5py.File(mlibname, 'r')
-    
-    # Find C3K objects outside the MILES convex hull
-    mparams = mlib['parameters'][:]
-    inside = outside_hull(logify_teff(mparams), clib['parameters'][:])
-    bad = np.max(clib['spectra'], axis=-1) <= 0
+    #clib = h5py.File(clibname, 'r')
+    #mlib = h5py.File(mlibname, 'r')
 
-    good = (~inside) & (~bad)
+
+    outname = 'with_c3k_with_mdwarfs_culled_lib_snr_cut.h5'
+    combdat = combine_miles_c3k(mlibname, clibname, outname=outname, broaden=False)
+
     #clib.close()
     #mlib.close()
-    # Normalize C3K by Lbol
-
-    # Broaden C3K to MILES+IRTF resolution, and put on same wavelength scale

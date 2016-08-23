@@ -30,7 +30,10 @@ def make_struct(**label_dict):
             nl = 1
         labels = np.zeros(nl, dtype=dtype)
         for n in label_dict.keys():
-            labels[n] = label_dict[n]
+            try:
+                labels[n] = label_dict[n]
+            except(TypeError, ValueError):
+                pass
         return labels
  
 
