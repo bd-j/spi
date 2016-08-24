@@ -1,2 +1,6 @@
 *.pyc
 *.h5
+data
+build
+dist
+*.egg-info
