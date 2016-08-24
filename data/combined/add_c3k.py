@@ -19,26 +19,6 @@ log_SB_cgs = np.log10(5.670367e-5)
 log_SB_solar = log_SB_cgs + 2 * log_rsun_cgs - log_lsun_cgs
 
 
-class CombinedInterpolator(SimplePSIModel):
-
-    def load_training_data(library, ckc_weight=1e-1):
-        # --- read the data ---
-        with h5py.File(mlib, "r") as f:
-            self.wavelengths = f['wavelengths'][:]
-            self.library_spectra = f['spectra'][:]
-            self.labels = f['parameters'][:]
-            unc = f['uncertainties']
-
-        # --- do relative weighting --
-        c3k = self.library_labels['miles_id'] == 'c3k'
-        # median miles uncertainty at each wavelength
-        umed = np.nanmedian(unc[~c3k, :], axis=0)
-        unc[c3k,:] = (umed / np.sqrt(ckc_weight))[None,:]
-
-        self.library_weights = 1 / unc**2
-        self.has_errors = True
-
-
 def select_outside(miles, c3k, **extras):
     """
     :returns outside:
@@ -106,8 +86,9 @@ def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
     
     # Add new label info
     nobj = len(labels)
-    newcols = ['miles_id', 'logl', 'luminosity']
-    newdata = [np.array(nobj * ['c3k']), np.zeros(nobj), np.ones(nobj)]
+    newcols = ['miles_id', 'name', 'logl', 'luminosity']
+    newdata = [np.array(nobj * ['c3k']), np.array(nobj * ['c3k']),
+               np.zeros(nobj), np.ones(nobj)]
     # Deal with oldstyle files that only have Z, not feh
     if 'Z' in labels.dtype.names:
         newcols += ['feh']
@@ -160,8 +141,9 @@ def rectify_miles(miles, outname=None):
         except:
             unc = np.ones_like(spectra)
 
-    newfield = ['logt', 'miles_id', 'logl', 'luminosity']
-    newdata = [np.log10(labels['teff']), ancillary['miles_id'],
+    newfield = ['logt', 'miles_id', 'name', 'logl', 'luminosity']
+    newdata = [np.log10(labels['teff']),
+               ancillary['miles_id'], ancillary['name'],
                ancillary['logl'], 10**ancillary['logl']]
     labels = rfn.append_fields(labels, newfield, newdata, usemask=False)
 

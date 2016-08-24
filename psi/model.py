@@ -135,17 +135,6 @@ class PSIModel(TrainingSet):
             return np.squeeze(spectrum.T * self.reference_spectrum), is_inside
         return np.squeeze(spectrum.T * self.reference_spectrum)
 
-    def inside_hull(self, labels):
-        """This method checks whether a requested set of labels is inside the
-        convex hull of the training data.  Returns a bool.  This method relies
-        on Delauynay Triangulation and is thus exceedlingly slow for large
-        dimensionality.
-        """
-        L = flatten_struct(self.training_labels, use_labels=self.label_names)
-        l = flatten_struct(labels, use_labels=self.label_names)
-        hull = Delaunay(L.T)
-        return hull.find_simplex(l.T) >= 0
-    
     @property
     def label_names(self):
         return self.library_labels.dtype.names
@@ -218,6 +207,17 @@ class SimplePSIModel(PSIModel):
         self.reference_index = None
         self.reference_spectrum = self.training_spectra.std(axis=0)
 
+    def inside_hull(self, labels):
+        """This method checks whether a requested set of labels is inside the
+        convex hull of the training data.  Returns a bool.  This method relies
+        on Delauynay Triangulation and is thus exceedlingly slow for large
+        dimensionality.
+        """
+        L = flatten_struct(self.training_labels, use_labels=self.used_labels)
+        l = flatten_struct(labels, use_labels=self.used_labels)
+        hull = Delaunay(L.T)
+        return hull.find_simplex(l.T) >= 0
+        
     @property
     def used_labels(self):
         try:
