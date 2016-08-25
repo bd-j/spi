@@ -37,7 +37,7 @@ features['Cool Giants'] = (['logt'],
 # Cool Dwarfs
 # Teff <= 4000, logg > 3.5 
 bounds['Cool Dwarfs'] = {'logt': (3.4, np.log10(4000.0)),
-                         'logg': (4.001, 6),
+                         'logg': (3.999, 6),
                          'feh': (-3, 0.5)}
 features['Cool Dwarfs'] = (['logt'],
                            ['feh'],
@@ -84,7 +84,7 @@ features['Warm Giants'] = (['logt'],
 # Warm Dwarfs
 # 4000 < Teff <= 6500, logg > 3.5
 bounds['Warm Dwarfs'] = {'logt': (np.log10(4000.0), np.log10(6000)),
-                         'logg': (3.500, 5.25),
+                         'logg': (3.4999, 5.25),
                          'feh': (-3, 0.5)}
 features['Warm Dwarfs'] = (['logt'],
                            ['feh'],
@@ -114,26 +114,11 @@ features['Warm Dwarfs'] = (['logt'],
                            ['logt', 'logt', 'logt', 'logt', 'logt', 'logt']
                            )
 
-# Hot Giants
-# Teff > 6500, logg <= 3.5
-# only 3 non-c3k stars
-bounds['Hot Giants'] = {'logt': (np.log10(6000), 4.2),
-                         'logg': (2.0, 3.500),
+#Hot Stars
+bounds['Hot Stars'] = {'logt': (np.log10(6000), 4.0),
+                         'logg': (2.999, 5.001),
                          'feh': (-3, 0.5)}
-features['Hot Giants'] = (['logt'],
-                          ['feh'],
-                          ['logg'],
-                          ['logt', 'logt'],
-                          ['feh', 'feh'],
-                          ['logg', 'logg']
-                          )
-
-# Hot Dwarfs
-# Teff > 6500, logg > 3.5 
-bounds['Hot Dwarfs'] = {'logt': (np.log10(5800), 4.2),
-                         'logg': (3.500, 5.25),
-                         'feh': (-3, 0.5)}
-features['Hot Dwarfs'] = (['logt'],
+features['Hot Stars'] = (['logt'],
                           ['feh'],
                           ['logg'],
                           ['logt', 'logt'],
