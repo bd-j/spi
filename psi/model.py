@@ -91,16 +91,32 @@ class PSIModel(TrainingSet):
         """Do the regression for one wavelength.
         """
         spec = self.training_spectra[:, ind_wave] / self.reference_spectrum[ind_wave]
+        # Get weights if neccesary.  Takes into account logification
+        relative_weights = self.get_weights(ind_wave, spec)
         if self.logify_flux:
             # logify before training
             spec = np.log(spec)
-        if (not self.has_errors) or (self.unweighted):
+        if relative_weights is None:
             return self.ordinary_least_squares(spec)
         else:
-            weights = self.training_weights[:, ind_wave] #* self.reference_spectrum[ind_wave]**2
+            return self.weighted_least_squares(spec, relative_weights)
+
+    def get_weights(self, ind_wave, spec):
+        """Get weights for each star, for each wavelength.  
+        :param spec:
+            Linear flux units.
+        """
+        if (not self.has_errors) or (self.unweighted):
+            return None
+        else:
             if self.logify_flux:
-                 weights *= spec**2
-            return self.weighted_least_squares(spec, weights)
+                # if training log(flux), use relative (S/N)**2 for weights
+                relative_weights = self.training_snr[:, ind_wave]**2
+            else:
+                # else just use the inverse flux variance (S/N)**2 /S**2 
+                relative_weights = (self.training_snr[:, ind_wave] / spec)**2
+                
+            return relative_weights
 
     def ordinary_least_squares(self, spec):
         """OLS

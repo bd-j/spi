@@ -119,7 +119,7 @@ def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
         spec = np.array([np.interp(outwave, wave / 1e4, s) for s in spectra])
 
     # Dummy uncertainties
-    unc = np.ones_like(spec)
+    unc = 0.1 * spec
 
     if outname is not None:
         write_h5(outname, w, spec, unc, labels)
@@ -137,9 +137,11 @@ def rectify_miles(miles, outname=None):
         wave = f['wavelengths'][:]
         ancillary = f['ancillary'][:]
         try:
-            unc = f['uncertainties'][:]
+            unc = f['unc'][:]
+            unc[:, :4350] /= 1e12
         except:
-            unc = np.ones_like(spectra)
+            print('fudging errors')
+            unc = 0.1 * spectra
 
     newfield = ['logt', 'miles_id', 'name', 'logl', 'luminosity']
     newdata = [np.log10(labels['teff']),
@@ -168,8 +170,8 @@ def combine_miles_c3k(mlib='', clib='', c3k_weight=1e-1,
     assert np.allclose(wave, w)
     spec = np.vstack([spectra, s])
     # relative weighting
-    norm = np.nanmedian(1/unc**2) * c3k_weight
-    unc = np.vstack([unc, u / np.sqrt(norm)])
+    # norm = np.nanmedian(1/unc**2) * c3k_weight
+    unc = np.vstack([unc, u ])
     # build a useful structured array and fill it
     newlabels = np.zeros(len(lab), dtype=labels.dtype)
     for l in labels.dtype.names:
@@ -193,12 +195,13 @@ if __name__ == "__main__":
         
     #clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
     clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
-    mlibname = '/Users/bjohnson/Projects/psi/data/combined/with_mdwarfs_culled_lib_snr_cut.h5'
+    #mlibname = '/Users/bjohnson/Projects/psi/data/combined/with_mdwarfs_culled_lib_snr_cut.h5'
+    mlibname = '/Users/bjohnson/Projects/psi/data/combined/culled_lib_w_mdwarfs_w_unc.h5'
     #clib = h5py.File(clibname, 'r')
     #mlib = h5py.File(mlibname, 'r')
 
 
-    outname = 'with_c3k_with_mdwarfs_culled_lib_snr_cut.h5'
+    outname = 'culled_lib_w_mdwarfs_w_unc_w_c3k.h5'
     combdat = combine_miles_c3k(mlibname, clibname, outname=outname, broaden=False)
 
     #clib.close()

@@ -76,7 +76,7 @@ class TrainingSet(object):
         self.library_spectra = self.library_spectra[self.library_mask, :]
         self.library_labels = self.library_labels[self.library_mask]
         if self.has_errors:
-            self.library_weights = self.library_weights[self.library_mask, :]
+            self.library_snr = self.library_snr[self.library_mask, :]
         self.reset_mask()
 
     def renormalize_library_spectra(self, normwave=None, bylabel=None):
@@ -105,5 +105,5 @@ class TrainingSet(object):
         return self.library_labels[self.library_mask]
 
     @property
-    def training_weights(self):
-        return self.library_weights[self.library_mask, :]
+    def training_snr(self):
+        return self.library_snr[self.library_mask, :]

@@ -27,7 +27,7 @@ class MILESInterpolator(SimplePSIModel):
             self.library_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
             try:
-                self.library_weights = 1/(f['uncertainty'][:]**2)
+                self.library_snr = self.library_spectra / f['uncertainty'][:]
                 self.has_errors = True
             except:
                 pass
@@ -40,7 +40,7 @@ class MILESInterpolator(SimplePSIModel):
                                                  newfield, newdata, usemask=False)
         try:
             # assuming f_nu
-            fbol = np.trapz(self.library_spectra/self.wavelengths**2, self.wavelengths)
+            fbol = np.trapz(self.library_spectra / self.wavelengths**2, self.wavelengths)
             newfield = ['logl', 'luminosity', 'fbol']
             newdata = [ancillary['logl'], 10**ancillary['logl'], fbol]
             self.library_labels = rfn.append_fields(self.library_labels,
