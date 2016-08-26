@@ -14,8 +14,9 @@ def zoom_lines(wave, predicted, observed, uncertainties=None,
     props = dict(boxstyle='round', facecolor='w', alpha=0.5)
     nline = len(showlines)
     nx = np.floor(np.sqrt(nline * 1.0))
+    ny = np.ceil(nline / nx)
     
-    fig, axes = pl.subplots(2,2, figsize=(10.0, 8.5))
+    fig, axes = pl.subplots(int(nx), int(ny), figsize=(10.0, 8.5))
     for i, (line, (lo, hi)) in enumerate(showlines.items()):
         ax = axes.flat[i]
         g = (wave > lo) & (wave < hi)

@@ -71,8 +71,9 @@ if __name__ == "__main__":
     
     c3k_weight = 1e-1 # the relative weight of the CKC models compared to the MILES models.
     regime = 'Warm Giants'
-    fake_weights = True
-    outroot = '{}_unc={}_cwght={:3.2f}.pdf'.format(regime.replace(' ','_'), not fake_weights, c3k_weight)
+    fake_weights = False
+    outroot = '{}_unc={}_cwght={:03.2f}.pdf'.format(regime.replace(' ','_'),
+                                                    not fake_weights, c3k_weight)
 
     # --- The PSI Model ---
     mlib = '/Users/bjohnson/Projects/psi/data/combined/culled_lib_w_mdwarfs_w_unc_w_c3k.h5'
@@ -83,13 +84,13 @@ if __name__ == "__main__":
     # Use fake, constant SNR for all the MILES spectra
     if fake_weights:
         g = spi.library_snr > 0
-        spi.library_snr[g] = 10
+        spi.library_snr[g] = 100
     # mask the Mann mdwarf stars for now
     mann = np.where(spi.library_labels['miles_id'] == 'mdwarf')[0]
     c3k = np.where(spi.library_labels['miles_id'] == 'c3k')[0]
     spi.leave_out(mann)
     # Choose parameter regime and features
-    spi.select(bounds=bounds[regime], delete=False)
+    spi.restrict_sample(bounds=bounds[regime])
     spi.features = features[regime]
 
     # --- Leave-one-out ----
@@ -108,8 +109,8 @@ if __name__ == "__main__":
         if (i % 10) == 0: print('{} of {}'.format(i, len(loo_indices)))
         # Get full sample and the parameters of the star to leave out
         spec = spi.library_spectra[j, :]
-        tlabels = spi.library_labels[j]
-        labels = dict([(n, tlabels[n]) for n in spi.label_names])
+        labels = dict_struct(spi.library_labels[j])
+        #labels = dict([(n, tlabels[n]) for n in spi.label_names])
         # Leave one out and re-train
         spi.library_mask[j] = False
         spi.train()
@@ -122,35 +123,49 @@ if __name__ == "__main__":
         
     # --- Calculate statistics ---
     # get fractional residuals
-    wmin, wmax = 3800, 7200
+    wmin, wmax = 0.38, 2.4
     imin = np.argmin(np.abs(spi.wavelengths - wmin))
     imax = np.argmin(np.abs(spi.wavelengths - wmax))
-    imin, imax = 0, len(spi.wavelengths) -1
+    #imin, imax = 0, len(spi.wavelengths) - 1
     delta = predicted / observed - 1.0
+    snr = observed / obs_unc
+    chi = delta * snr
 
     var_spectrum = np.nanvar(delta, axis=0)
     bias_spectrum = np.nanmean(delta, axis=0)
+    chi_mean_spectrum = np.nanmean(chi, axis=0)
+    chi_var_spectrum = np.nanvar(chi, axis=0)
+    
     var_total = np.nanvar(delta[:, imin:imax], axis=1)
     # Get chi^2
-    snr = 100
-    chisq =np.nansum( ((snr * delta)**2)[:,imin:imax], axis=1)
+    #snr = 100
+    chisq = np.nansum((chi**2)[:,imin:imax], axis=1)
 
     # --- Make Plots ---
 
     # Plot the bias and variance spectrum
+    colors = pl.rcParams['axes.color_cycle']
     sfig, sax = pl.subplots()
-    sax.plot(spi.wavelengths, np.sqrt(var_spectrum)*100, label='Dispersion')
-    sax.plot(spi.wavelengths, np.abs(bias_spectrum)*100, label='Mean absolute offset')
-    sax.set_ylim(0.001, 100)
-    sax.set_yscale('log')
-    sax.set_ylabel('%')
+    sax.plot(spi.wavelengths, np.sqrt(chi_var_spectrum), label='$\sigma_\chi$',
+             color=colors[0])
+    sax.plot(spi.wavelengths, chi_mean_spectrum, label=r'$\bar{\chi}$',
+             color=colors[1])
+    sax.axvline(1, linestyle=':', color=colors[0])
+    sax.axvline(0, linestyle=':', color=colors[1])
+    sax.set_ylim(-5, 30)
+    sax.set_ylabel('$\chi$ (predicted - observed)')
+    #sax.plot(spi.wavelengths, np.sqrt(var_spectrum)*100, label='Dispersion')
+    #sax.plot(spi.wavelengths, np.abs(bias_spectrum)*100, label='Mean absolute offset')
+    #sax.set_ylim(0.001, 100)
+    #sax.set_yscale('log')
+    #sax.set_ylabel('%')
     sax.legend(loc=0)
     sfig.show()
 
     # Plot a map of total variance as a function of label
     labels = spi.library_labels[loo_indices]
-    quality, quality_label = np.log(chisq), r'$log \, \chi^2$ (S/N={})'.format(snr)
-    mapfig, mapaxes = quality_map(lab, quality, quality_label=quality_label)
+    quality, quality_label = np.log10(chisq), r'$log \, \chi^2$'
+    mapfig, mapaxes = quality_map(labels, quality, quality_label=quality_label)
     #mapfig.savefig('figures/residual_map.pdf')
 
     # plot zoom ins around individual lines
@@ -158,9 +173,9 @@ if __name__ == "__main__":
         for i, j in enumerate(loo_indices):
             fig, ax = zoom_lines(spi.wavelengths, predicted[i,:], observed[i,:],
                                  uncertainties=obs_unc[i,:], showlines=showlines)
-            values = dict_struct(spi.library_labels[j]),
+            values = dict_struct(spi.library_labels[j])
             values['inhull'] = inhull[i]
-            ti = "{name}: teff={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={}".format(**values)
+            ti = "{name:s}: teff={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}".format(**values)
             fig.suptitle(ti)
             pdf.savefig(fig)
             pl.close(fig)
