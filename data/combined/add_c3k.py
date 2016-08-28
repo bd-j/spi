@@ -138,7 +138,7 @@ def rectify_miles(miles, outname=None):
         ancillary = f['ancillary'][:]
         try:
             unc = f['unc'][:]
-            unc[:, :4350] /= 1e12
+            #unc[:, :4350] /= 1e12
         except:
             print('fudging errors')
             unc = 0.1 * spectra

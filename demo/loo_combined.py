@@ -14,7 +14,7 @@ from combined_params import bounds, features
 class CombinedInterpolator(SimplePSIModel):
 
     def load_training_data(self, training_data='', c3k_weight=1e-1,
-                           snr_threshold=1e-10, **extras):
+                           snr_threshold=1e-10, snr_max=np.inf, **extras):
         # --- read the data ---
         with h5py.File(training_data, "r") as f:
             self.wavelengths = f['wavelengths'][:]
@@ -27,12 +27,19 @@ class CombinedInterpolator(SimplePSIModel):
         self.library_snr = self.library_spectra / unc #* 0.0 + 1.0
         self.has_errors = True
 
+        # enforce a max S/N
+        if snr_max < np.inf:
+            self.library_snr = np.hypot(1.0 / self.library_snr,
+                                        1.0 / snr_max) # np.clip(self.library_snr, 0, snr_max)
+
         # --- set negative (or very low) S/N fluxes to zero weight ---
-        bad = (self.library_snr < snr_threshold) | (~np.isfinite(self.library_snr))
-        self.bad_flux_value = np.nanmedian(self.library_spectra)
+        bad = ((self.library_snr < snr_threshold) |
+               (~np.isfinite(self.library_snr)) |
+               (self.library_spectra < 0)
+               )
+        self.bad_flux_value = np.nanmedian(self.library_spectra[~bad])
         self.library_spectra[bad] = self.bad_flux_value
         self.library_snr[bad] = 0.0
-        
         self.reset_mask()
 
     def get_weights(self, ind_wave, spec):
@@ -64,21 +71,32 @@ class CombinedInterpolator(SimplePSIModel):
         self.reference_index = None
         self.reference_spectrum = self.training_spectra.std(axis=0)
 
-        
-if __name__ == "__main__":
+
+def run_matrix():
+    from itertools import product
+    regimes = ['Warm Giants', 'Cool Giants', 'Warm Dwarfs', 'Cool Dwarfs', 'Hot Stars']
+    fake_weights = [ True, False ]
+    c3k_weight = [1e-3, 1e-1, 1]
+
+    for regime, wght, use_unc in product(regimes, c3k_weight, fake_weights):
+        loo(regime=regime, c3k_weight=wght, fake_weights=use_unc)
+
+
+def loo(regime='Warm Giants',c3k_weight=1e-1, # the relative weight of the CKC models compared to the MILES models.
+        fake_weights=False, snr_max=1e3):
 
     ts = time.time()
-    
-    c3k_weight = 1e-1 # the relative weight of the CKC models compared to the MILES models.
-    regime = 'Warm Giants'
-    fake_weights = False
-    outroot = '{}_unc={}_cwght={:03.2f}.pdf'.format(regime.replace(' ','_'),
-                                                    not fake_weights, c3k_weight)
+    #c3k_weight = 1e-1 # the relative weight of the CKC models compared to the MILES models.
+    #regime = 'Warm Giants'
+    #fake_weights = False
+    #snr_max = 1e3
+    outroot = '{}_unc={}_cwght={:03.2f}'.format(regime.replace(' ','_'),
+                                                not fake_weights, c3k_weight)
 
     # --- The PSI Model ---
     mlib = '/Users/bjohnson/Projects/psi/data/combined/culled_lib_w_mdwarfs_w_unc_w_c3k.h5'
     spi = CombinedInterpolator(training_data=mlib, c3k_weight=c3k_weight,
-                               unweighted=False, logify_flux=True)
+                               unweighted=False, snr_max=snr_max, logify_flux=True)
     # renormalize by bolometric luminosity
     spi.renormalize_library_spectra(bylabel='luminosity')
     # Use fake, constant SNR for all the MILES spectra
@@ -118,7 +136,7 @@ if __name__ == "__main__":
         inhull[i] = spi.inside_hull(labels)
         # now put it back
         spi.library_mask[j] = True
-
+        
     print('time to retrain {} models: {:.1f}s'.format(len(loo_indices), time.time()-ts))
         
     # --- Calculate statistics ---
@@ -129,6 +147,7 @@ if __name__ == "__main__":
     #imin, imax = 0, len(spi.wavelengths) - 1
     delta = predicted / observed - 1.0
     snr = observed / obs_unc
+    # snr = np.clip(snr, 0, 100)
     chi = delta * snr
 
     var_spectrum = np.nanvar(delta, axis=0)
@@ -160,13 +179,13 @@ if __name__ == "__main__":
     #sax.set_yscale('log')
     #sax.set_ylabel('%')
     sax.legend(loc=0)
-    sfig.show()
+    sfig.savefig('{}_biasvar.pdf'.format(outroot))
 
     # Plot a map of total variance as a function of label
     labels = spi.library_labels[loo_indices]
     quality, quality_label = np.log10(chisq), r'$log \, \chi^2$'
     mapfig, mapaxes = quality_map(labels, quality, quality_label=quality_label)
-    #mapfig.savefig('figures/residual_map.pdf')
+    mapfig.savefig('{}_qmap.pdf'.format(outroot))
 
     # plot zoom ins around individual lines
     with PdfPages('{}_lines.pdf'.format(outroot)) as pdf:
@@ -182,3 +201,16 @@ if __name__ == "__main__":
             
     print('finished training and plotting in {:.1f}'.format(time.time()-ts))
     
+    # --- Write output ---
+    import json
+    with h5py.File('{}_results.h5'.format(outroot), 'w') as f:
+        obs = f.create_dataset('observed', data=observed)
+        mod = f.create_dataset('predicted', data=predicted)
+        unc = f.create_dataset('uncertainty', data=obs_unc)
+        p = f.create_dataset('parameters', data=spi.library_labels[loo_indices])
+        f.attrs['terms'] = json.dumps(spi.features)
+        
+
+if __name__ == "__main__":
+    loo(regime='Warm Giants', c3k_weight=1e-1, fake_weights=False)
+    #run_matrix()
