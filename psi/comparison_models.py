@@ -59,7 +59,6 @@ class PiecewiseC3K(StarBasis):
 
 class PiecewiseMILES(StarBasis):
 
-
     def load_lib(self, libname='', **extras):
         """Read a MILES library. This library should be stored as an HDF5 file, with the
         datasets ``wavelengths``, ``parameters`` and ``spectra``.  These are
@@ -75,11 +74,15 @@ class PiecewiseMILES(StarBasis):
             ancillary = f['ancillary'][:]
         # add and rename labels here.  Note that not all labels need or will be
         # used in the feature generation
-        newfield = ['logt', 'miles_id']
-        newdata = [np.log10(self._libparams['teff']), ancillary['miles_id']]
+        newfield = ['logt', 'miles_id', 'name', 'logl', 'luminosity']
+        newdata = [np.log10(self._libparams['teff']),
+                   ancillary['miles_id'], ancillary['name'],
+                   ancillary['logl'], 10**ancillary['logl']
+                   ]
         self._libparams = rfn.append_fields(self._libparams, newfield, newdata,
                                             usemask=False)
-        
+        self._spectra /= self._libparams['luminosity'][:, None]
+
     def select(self, bounds=None, badvalues=None):
 
         if bounds is not None:

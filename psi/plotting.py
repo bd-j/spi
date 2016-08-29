@@ -4,31 +4,39 @@ import matplotlib.pyplot as pl
 
 props = dict(boxstyle='round', facecolor='w', alpha=0.5)
 
+def boxsmooth(x, width=10):
+    return np.convolve(x, np.ones(width*1.0) / width, mode='same')
+
 
 def zoom_lines(wave, predicted, observed, uncertainties=None,
-               c3k=None, showlines={}):
+               c3k=None, show_native=True, showlines={}, figsize=None):
     props = dict(boxstyle='round', facecolor='w', alpha=0.5)
     nline = len(showlines)
     nx = np.floor(np.sqrt(nline * 1.0))
     ny = np.ceil(nline / nx)
-    
-    fig, axes = pl.subplots(int(ny), int(nx), figsize=(4.2*nx + 1.5, 3.8*ny + 1.0))
+    if figsize is None:
+        figsize = (4.2*nx + 1.5, 3.8*ny + 1.0)
+    fig, axes = pl.subplots(int(ny), int(nx), figsize=figsize)
     for i, (line, (lo, hi)) in enumerate(showlines.items()):
         if nline > 1:
             ax = axes.flat[i]
+            alpha = 1.0
         else:
             ax = axes
+            alpha=0.5
         g = (wave > lo) & (wave < hi)
         if uncertainties is not None:
             ax.fill_between(wave[g], observed[g] - uncertainties[g], observed[g] + uncertainties[g],
                             color='grey', alpha=0.5)
-        ax.plot(wave[g], observed[g], label='Observed')
-        ax.plot(wave[g], predicted[g], color='k', label='PSI miles+c3k')
+        ax.plot(wave[g], observed[g], alpha=alpha, label='Observed')
+        if show_native:
+            ax.plot(wave[g], predicted[g], color='k',
+                    alpha=alpha, label='PSI miles+c3k')
         delta = predicted[g] / observed[g]
         residual = np.median(delta)
         rms = (delta / residual - 1).std()
-        ax.plot(wave[g], predicted[g] / residual, color='k',
-                linestyle='--', label='PSI shifted')
+        ax.plot(wave[g], predicted[g] / residual, color='k', alpha=alpha, linestyle='--',
+                label='PSI shifted')
         values = [100*(residual-1), 100*rms, line]
         label='PSI\nOffset: {:4.2f}%\nRMS: {:4.2f}%\n{}'.format(*values)
         ax.text(0.75, 0.20, label,
@@ -40,7 +48,7 @@ def zoom_lines(wave, predicted, observed, uncertainties=None,
             residual = np.median(delta)
             rms = (delta / residual - 1).std()
             ax.plot(wave[g], c3k[g] / residual, color='crimson',
-                    linestyle='--', label='C3K shifted')
+                    linestyle='--', label='C3K shifted', alpha=alpha)
             values = [100*(residual-1), 100*rms]
             label='C3K\nOffset: {:4.2f}%\nRMS: {:4.2f}%'.format(*values)
             ax.text(0.05, 0.20, label,

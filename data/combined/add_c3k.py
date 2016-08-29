@@ -77,61 +77,7 @@ def broaden(wave, spec, outwave=None, break_wave=7430., inres=1e4*2.355, **extra
     return outwave, spec
 
 
-def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
-                outwave=None, outname=None, mask_mann=False,
-                **broaden_kwargs):
-    """
-    """
-    # Read C3K
-    with h5py.File(c3k, "r") as f:
-        spectra = f['spectra'][:]
-        labels = f['parameters'][:]
-        wave = f['wavelengths'][:]
-    
-    # Add new label info
-    nobj = len(labels)
-    newcols = ['miles_id', 'name', 'logl', 'luminosity']
-    newdata = [np.array(nobj * ['c3k']), np.array(nobj * ['c3k']),
-               np.zeros(nobj), np.ones(nobj)]
-    # Deal with oldstyle files that only have Z, not feh
-    if 'Z' in labels.dtype.names:
-        newcols += ['feh']
-        newdata += [np.log10(labels['Z']/0.0134)]
-    labels = rfn.append_fields(labels, newcols, newdata, usemask=False)
-    
-    # Ditch stars within the miles convex hull
-    if selection is None:
-        if miles is not None:
-            outside_hull = select_outside(miles, labels, mask_mann=mask_mann)
-            has_flux = np.max(spectra, axis=-1) > 1e-32
-            selection = outside_hull & has_flux
-        else:
-            selection = slice(None)
-    spectra = spectra[selection, :]
-    labels = labels[selection]
-
-    # Renormalize to Lsun/Hz/solar luminosity
-    logl, log4pi = 0.0, np.log10(4 * np.pi)
-    twologR = (logl+log_lsun_cgs) - 4 * labels['logt'] - log_SB_cgs - log4pi
-    spectra *= 10**(twologR[:, None] + 2 * log4pi - log_lsun_cgs)
-    
-    # Broaden
-    if broaden:
-        w, spec = broaden(wave / 1e4, spectra, outwave=outwave, **broaden_kwargs)
-    else:
-        w = outwave
-        spec = np.array([np.interp(outwave, wave / 1e4, s) for s in spectra])
-
-    # Dummy uncertainties
-    unc = 0.1 * spec
-
-    if outname is not None:
-        write_h5(outname, w, spec, unc, labels)
-
-    return w, spec, unc, labels
-
-
-def rectify_miles(miles, outname=None):
+def rectify_miles(miles, outname=None, **extras):
     """
     """
     with h5py.File(miles, "r") as f:
@@ -158,17 +104,76 @@ def rectify_miles(miles, outname=None):
     return wave, spectra, unc, labels        
 
 
+def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
+                outwave=None, outname=None, mask_mann=False,
+                **broaden_kwargs):
+    """
+    """
+    # Read C3K
+    with h5py.File(c3k, "r") as f:
+        spectra = f['spectra'][:]
+        labels = f['parameters'][:]
+        wave = f['wavelengths'][:]
+    
+    # Add new label info
+    nobj = len(labels)
+    newcols = ['miles_id', 'name', 'logl', 'luminosity']
+    newdata = [np.array(nobj * ['c3k']), np.array(nobj * ['c3k']),
+               np.zeros(nobj), np.ones(nobj)]
+    # Deal with oldstyle files that only have Z, not feh
+    if 'Z' in labels.dtype.names:
+        newcols += ['feh']
+        newdata += [np.log10(labels['Z']/0.0134)]
+    labels = rfn.append_fields(labels, newcols, newdata, usemask=False)
+    
+    # Ditch stars within the miles convex hull
+    if selection is None:
+        has_flux = np.max(spectra, axis=-1) > 1e-32
+        if miles is not None:
+            outside_hull = select_outside(miles, labels, mask_mann=mask_mann)
+            selection = outside_hull & has_flux
+        else:
+            selection = has_flux
+    spectra = spectra[selection, :]
+    labels = labels[selection]
+
+    # Renormalize to Lsun/Hz/solar luminosity
+    logl, log4pi = 0.0, np.log10(4 * np.pi)
+    twologR = (logl+log_lsun_cgs) - 4 * labels['logt'] - log_SB_cgs - log4pi
+    spectra *= 10**(twologR[:, None] + 2 * log4pi - log_lsun_cgs)
+    
+    # Broaden
+    if broaden:
+        w, spec = broaden(wave / 1e4, spectra, outwave=outwave, **broaden_kwargs)
+    else:
+        w = outwave
+        spec = np.array([np.interp(outwave, wave / 1e4, s) for s in spectra])
+
+    # Dummy uncertainties
+    unc = 0.1 * spec
+
+    if outname is not None:
+        write_h5(outname, w, spec, unc, labels)
+
+    return w, spec, unc, labels
+
+
 def combine_miles_c3k(mlib='', clib='', c3k_weight=1e-1,
-                      outname='with_c3k_with_mdwarfs_culled_lib_snr_cut.h5',
-                      **kwargs):
+                      outname='test.h5',
+                      all_c3k=False, **kwargs):
     """
     """
     # get MILES
-    mdat = rectify_miles(mlib, outname=None)
+    mdat = rectify_miles(mlib, outname=None, **kwargs)
     wave, spectra, unc, labels = mdat
 
     # add C3K
-    cdat = rectify_c3k(clib, miles=mlib, outwave=wave, inres=1e4*2.35, **kwargs)
+    if all_c3k:
+        miles = None
+    else:
+        miles = mlib
+    print(miles)
+    cdat = rectify_c3k(clib, miles=miles, outwave=wave, inres=1e4*2.35, **kwargs)
     w, s, u, lab = cdat
     assert np.allclose(wave, w)
     spec = np.vstack([spectra, s])
@@ -204,8 +209,10 @@ if __name__ == "__main__":
     #mlib = h5py.File(mlibname, 'r')
 
 
-    outname = 'culled_lib_w_unc_w_c3k.h5'
-    combdat = combine_miles_c3k(mlibname, clibname, outname=outname, mask_mann=True, broaden=False)
+    #outname = 'culled_lib_w_unc_w_c3k.h5'
+    #combdat = combine_miles_c3k(mlibname, clibname, outname=outname, mask_mann=True, broaden=False)
+    outname = 'culled_lib_w_mdwarfs_w_unc_w_allc3k.h5'
+    combdat = combine_miles_c3k(mlibname, clibname, outname=outname, all_c3k=True, broaden=False)
 
     #clib.close()
     #mlib.close()

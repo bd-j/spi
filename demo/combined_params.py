@@ -1,7 +1,17 @@
 import numpy as np
+from copy import deepcopy
 
 bounds = {}
 features = {}
+
+def pad_bounds(inbounds, tpad=500., gpad=0.5, zpad=0.1, **extras):
+    mm = np.array([-1,1])
+    outbounds = {}
+    outbounds['logt'] = tuple(np.log10(10**np.array(inbounds['logt']) + mm * tpad))
+    outbounds['logg'] = tuple(np.array(inbounds['logg']) + mm*gpad)
+    outbounds['feh'] = tuple(np.array(inbounds['feh']) + mm*gpad)
+    return outbounds
+
 
 bounds['Cool Giants'] = {'logt': (3.4, np.log10(4000.0)),
                          'logg': (-0.5, 2.25),
@@ -32,14 +42,14 @@ features['Cool Giants'] = (['logt'],
                            ['feh', 'logg', 'logg'],
                            # quartic
                            ['logt', 'logt', 'logt', 'logt'],
-                           ['logg', 'logg', 'logg', 'logg'],
-                           ['logt', 'logt', 'logg', 'feh'],
-                           ['logt', 'logg', 'logg', 'feh'],
-                           ['feh', 'feh', 'feh', 'logg'],
-                           ['feh', 'feh', 'logg', 'logg'],
+                           #['logg', 'logg', 'logg', 'logg'],
+                           #['logt', 'logt', 'logg', 'feh'],
+                           #['logt', 'logg', 'logg', 'feh'],
+                           #['feh', 'feh', 'feh', 'logg'],
+                           #['feh', 'feh', 'logg', 'logg'],
                            # quintic
-                           ['logt', 'logt', 'logt', 'logt', 'logt'],
-                           ['logt', 'logt', 'logt', 'logg', 'logg'],
+                           #['logt', 'logt', 'logt', 'logt', 'logt'],
+                           #['logt', 'logt', 'logt', 'logg', 'logg'],
                            #['logt', 'logt', 'logt', 'logt', 'logt', 'logt'],
                            #['logg', 'logg', 'logg', 'logg', 'logg', 'logg'],
                            #['logt', 'logt', 'logt', 'logt', 'logt', 'logt', 'logt'],
@@ -76,15 +86,19 @@ features['Cool Dwarfs'] = (['logt'],
 # should also remove very warm low-gravity C3K 
 bounds['Warm Giants'] = {'logt': (np.log10(4000.0), np.log10(6000)),
                          'logg': (-0.25, 3.501),
-                         'feh': (-3, 0.5)}
+                         'feh': (-2.501, 0.5)}
 features['Warm Giants'] = (['logt'],
                            ['feh'],
                            ['logg'],
+                           # Quadratic
                            ['logt', 'logt'],
                            ['logg', 'logg'],
                            ['feh', 'feh'],
+                           # Cross-Quadratic
                            ['logt', 'feh'],
                            ['logt', 'logg'],
+                           #['logg', 'feh'],
+                           # Cubic
                            ['logt', 'logt', 'logt'],
                            ['logg', 'logg', 'logg'],
                            ['logt', 'logt', 'logt', 'logt'],
@@ -98,7 +112,7 @@ features['Warm Giants'] = (['logt'],
 # 4000 < Teff <= 6500, logg > 3.5
 bounds['Warm Dwarfs'] = {'logt': (np.log10(4000.0), np.log10(6000)),
                          'logg': (3.4999, 5.25),
-                         'feh': (-3, 0.5)}
+                         'feh': (-2.501, 0.5)}
 features['Warm Dwarfs'] = (['logt'],
                            ['feh'],
                            ['logg'],
@@ -130,14 +144,18 @@ features['Warm Dwarfs'] = (['logt'],
 #Hot Stars
 bounds['Hot Stars'] = {'logt': (np.log10(6000), 4.0),
                          'logg': (2.999, 5.001),
-                         'feh': (-3, 0.5)}
+                         'feh': (-2.501, 0.5)}
 features['Hot Stars'] = (['logt'],
                           ['feh'],
                           ['logg'],
+                          # Quadratic
                           ['logt', 'logt'],
                           ['feh', 'feh'],
                           ['logg', 'logg'],
+                          # Cross-Quadratic
                           ['logt', 'logg'],
                           ['logt', 'feh'],
+                          ['logg', 'feh'],
+                          # Cubic
                           ['logt', 'logt', 'logt'],
                           )
