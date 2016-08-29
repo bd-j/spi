@@ -1,17 +1,67 @@
 import numpy as np
 import astropy.io.fits as pyfits
 import h5py
-from bsfh.source_basis import StarBasis
+from prospect.sources import StarBasis#, BigStarBasis
 from model import within
 
-__all__ = ["PiecewiseMILES", "TGM"]
+__all__ = ["PiecewiseC3K", "PiecewiseMILES", "TGM"]
+
+
+lightspeed = 2.998e18  # AA/s
+log_rsun_cgs = np.log10(6.955) + 10
+log_lsun_cgs = np.log10(3.839) + 33
+log_SB_cgs = np.log10(5.670367e-5)
+log_SB_solar = log_SB_cgs + 2 * log_rsun_cgs - log_lsun_cgs
+
+
+class PiecewiseC3K(StarBasis):
+    
+    def load_lib(self, libname='', **extras):
+        """Read a CKC library which has been pre-convolved to be close to your
+        resolution.  This library should be stored as an HDF5 file, with the
+        datasets ``wavelengths``, ``parameters`` and ``spectra``.  These are
+        ndarrays of shape (nwave,), (nmodels,), and (nmodels, nwave)
+        respecitvely.  The ``parameters`` array is a structured array.  Spectra
+        with no fluxes > 1e-32 are removed from the library
+        """
+        import h5py
+        f = h5py.File(libname, "r")
+        self._wave = np.array(f['wavelengths'])
+        self._libparams = np.array(f['parameters'])
+        if self._in_memory:
+            self._spectra = np.array(f['spectra'])
+            f.close()
+            # Filter library so that only existing spectra are included
+            maxf = np.max(self._spectra, axis=1)
+            good = maxf > 1e-32
+            self._libparams = self._libparams[good]
+            self._spectra = self._spectra[good, :]
+        else:
+            self._spectra = f['spectra']
+            
+
+        # Renormalize to Lsun/Hz/solar luminosity
+        logl, log4pi = 0.0, np.log10(4 * np.pi)
+        twologR = (logl+log_lsun_cgs) - 4 * self._libparams['logt'] - log_SB_cgs - log4pi
+        self._spectra *= 10**(twologR[:, None] + 2 * log4pi - log_lsun_cgs)
+
+        # add and rename labels here.  Note that not all labels need or will be
+        # used in the feature generation
+        from numpy.lib import recfunctions as rfn
+        newfield = ['teff']
+        newdata = [10**(self._libparams['logt'])]
+        if 'Z' in self._libparams.dtype.names:
+            newfield += ['feh']
+            newdata += [np.log10(self._libparams['Z']/0.0134)]
+        self._libparams = rfn.append_fields(self._libparams, newfield, newdata,
+                                            usemask=False)
+
 
 class PiecewiseMILES(StarBasis):
 
 
     def load_lib(self, libname='', **extras):
-        """Read a CKC library which has been pre-convolved to be close to your
-        resolution.  This library should be stored as an HDF5 file, with the
+        """Read a MILES library. This library should be stored as an HDF5 file, with the
         datasets ``wavelengths``, ``parameters`` and ``spectra``.  These are
         ndarrays of shape (nwave,), (nmodels,), and (nmodels, nwave)
         respecitvely.  The ``parameters`` array is a structured array.  Spectra

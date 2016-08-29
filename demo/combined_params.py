@@ -5,40 +5,53 @@ features = {}
 
 bounds['Cool Giants'] = {'logt': (3.4, np.log10(4000.0)),
                          'logg': (-0.5, 2.25),
-                         'feh': (-3, 0.5)}
+                         'feh': (-2.501, 0.5)}
 # Teff <= 4000, logg <= 3.5 
 features['Cool Giants'] = (['logt'],
                            ['feh'],
                            ['logg'],
+                           # quadratic
                            ['logt', 'logt'], 
-                           ['logt', 'logg'],
-                           ['logt', 'feh'], 
                            ['logg', 'logg'],
+                           ['feh', 'feh'],
+                           # cross quadratic
+                           ['feh', 'logg'],
+                           ['logt', 'logg'],
+                           ['logt', 'feh'],
+                           # cubic
                            ['logt', 'logt', 'logt'],
                            ['logg', 'logg', 'logg'],
-                           ['logt', 'logg', 'feh'],
-                           ['logt', 'feh', 'feh'],
                            ['feh', 'feh', 'feh'],
+                           # cross-cubic
+                           ['logt', 'logg', 'feh'],
+                           ['logt', 'logt', 'feh'],
+                           ['logt', 'logt', 'logg'],
+                           ['feh', 'feh', 'logt'],
+                           ['feh', 'feh', 'logg'],
+                           ['logt', 'logg', 'logg'],
+                           ['feh', 'logg', 'logg'],
+                           # quartic
                            ['logt', 'logt', 'logt', 'logt'],
                            ['logg', 'logg', 'logg', 'logg'],
                            ['logt', 'logt', 'logg', 'feh'],
                            ['logt', 'logg', 'logg', 'feh'],
                            ['feh', 'feh', 'feh', 'logg'],
                            ['feh', 'feh', 'logg', 'logg'],
+                           # quintic
                            ['logt', 'logt', 'logt', 'logt', 'logt'],
                            ['logt', 'logt', 'logt', 'logg', 'logg'],
-                           ['logt', 'logt', 'logt', 'logt', 'logt', 'logt'],
-                           ['logg', 'logg', 'logg', 'logg', 'logg', 'logg'],
-                           ['logt', 'logt', 'logt', 'logt', 'logt', 'logt', 'logt'],
-                           ['logg', 'logg', 'logg', 'logg', 'logg', 'logg', 'logg'],
-                           ['logt', 'logt', 'feh', 'feh', 'logg', 'logg', 'logg']
+                           #['logt', 'logt', 'logt', 'logt', 'logt', 'logt'],
+                           #['logg', 'logg', 'logg', 'logg', 'logg', 'logg'],
+                           #['logt', 'logt', 'logt', 'logt', 'logt', 'logt', 'logt'],
+                           #['logg', 'logg', 'logg', 'logg', 'logg', 'logg', 'logg'],
+                           #['logt', 'logt', 'feh', 'feh', 'logg', 'logg', 'logg']
                            )
 
 # Cool Dwarfs
 # Teff <= 4000, logg > 3.5 
 bounds['Cool Dwarfs'] = {'logt': (3.4, np.log10(4000.0)),
                          'logg': (3.999, 6),
-                         'feh': (-3, 0.5)}
+                         'feh': (-2.501, 0.5)}
 features['Cool Dwarfs'] = (['logt'],
                            ['feh'],
                            ['logg'],
@@ -123,5 +136,8 @@ features['Hot Stars'] = (['logt'],
                           ['logg'],
                           ['logt', 'logt'],
                           ['feh', 'feh'],
-                          ['logg', 'logg']
+                          ['logg', 'logg'],
+                          ['logt', 'logg'],
+                          ['logt', 'feh'],
+                          ['logt', 'logt', 'logt'],
                           )

@@ -19,7 +19,7 @@ log_SB_cgs = np.log10(5.670367e-5)
 log_SB_solar = log_SB_cgs + 2 * log_rsun_cgs - log_lsun_cgs
 
 
-def select_outside(miles, c3k, **extras):
+def select_outside(miles, c3k, mask_mann=True, **extras):
     """
     :returns outside:
         Boolean indicating whether an object in C3K is outside the convex hull
@@ -31,6 +31,9 @@ def select_outside(miles, c3k, **extras):
     mparams = rfn.append_fields(mparams, ['logt'], [np.log10(mparams['teff'])],
                                 usemask=False)
     mlib.close()
+    if mask_mann:
+        mann = mparams['miles_id'] == 'mdwarf'
+        mparams = mparams[~mann]
 
     # Read C3K
     try:
@@ -75,7 +78,8 @@ def broaden(wave, spec, outwave=None, break_wave=7430., inres=1e4*2.355, **extra
 
 
 def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
-                outwave=None, outname=None, **broaden_kwargs):
+                outwave=None, outname=None, mask_mann=False,
+                **broaden_kwargs):
     """
     """
     # Read C3K
@@ -98,7 +102,7 @@ def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
     # Ditch stars within the miles convex hull
     if selection is None:
         if miles is not None:
-            outside_hull = select_outside(miles, labels)
+            outside_hull = select_outside(miles, labels, mask_mann=mask_mann)
             has_flux = np.max(spectra, axis=-1) > 1e-32
             selection = outside_hull & has_flux
         else:
@@ -125,7 +129,6 @@ def rectify_c3k(c3k, selection=None, miles=None, broaden=True,
         write_h5(outname, w, spec, unc, labels)
 
     return w, spec, unc, labels
-
 
 
 def rectify_miles(miles, outname=None):
@@ -201,8 +204,8 @@ if __name__ == "__main__":
     #mlib = h5py.File(mlibname, 'r')
 
 
-    outname = 'culled_lib_w_mdwarfs_w_unc_w_c3k.h5'
-    combdat = combine_miles_c3k(mlibname, clibname, outname=outname, broaden=False)
+    outname = 'culled_lib_w_unc_w_c3k.h5'
+    combdat = combine_miles_c3k(mlibname, clibname, outname=outname, mask_mann=True, broaden=False)
 
     #clib.close()
     #mlib.close()
