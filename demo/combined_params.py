@@ -65,20 +65,31 @@ bounds['Cool Dwarfs'] = {'logt': (3.4, np.log10(4000.0)),
 features['Cool Dwarfs'] = (['logt'],
                            ['feh'],
                            ['logg'],
+                           # Quadtratic
+                           ['feh', 'feh'],
                            ['logt', 'logt'],
+                           ['logg', 'logg'],
+                           # Cross-quadratic
                            ['logt', 'feh'],
                            ['logt', 'logg'],
-                           ['feh', 'feh'],
+                           ['feh', 'logg'],
+                           # Cubic
+                           ['feh', 'feh', 'feh'],
+                           ['logt', 'logt', 'logt'],
+                           ['logg', 'logg', 'logg'],
+                           # Cross-Cubic
                            ['logt', 'logt', 'feh'],
                            ['logt', 'feh', 'feh'],
-                           ['feh', 'feh', 'feh'],
-                           ['logg', 'logg', 'logg'],
-                           ['logt', 'logt', 'logt'],
-                           ['logt', 'logt', 'feh', 'feh'],
-                           ['feh', 'feh', 'feh','feh'],
-                           ['logg', 'logg', 'logg', 'logg'],
+                           ['logg', 'logt', 'logt'],
+                           # Quartic
                            ['logt', 'logt', 'logt', 'logt'],
-                           ['logt', 'logt', 'logt', 'logt', 'logt']
+                           ['feh', 'feh', 'feh','feh'],
+                           #['logg', 'logg', 'logg', 'logg'],
+                           # Cross-Quartic
+                           ['logt', 'logt', 'feh', 'feh'],
+                           ['logt', 'logt', 'logt', 'feh'],
+                           # Quintic
+                           ['logt', 'logt', 'logt', 'logt', 'logt'],
                            )
 
 # Warm Giants
@@ -97,15 +108,25 @@ features['Warm Giants'] = (['logt'],
                            # Cross-Quadratic
                            ['logt', 'feh'],
                            ['logt', 'logg'],
-                           #['logg', 'feh'],
+                           ['logg', 'feh'],
                            # Cubic
                            ['logt', 'logt', 'logt'],
                            ['logg', 'logg', 'logg'],
+                           ['feh', 'feh', 'feh'],
+                           # Cross-Cubic
+                           ['logt', 'logt', 'feh'],
+                           ['logt', 'feh', 'feh'],
+                           ['logg', 'logt', 'logt'],
+                           ['logg', 'logg', 'logt'],
+                           # Quartic
                            ['logt', 'logt', 'logt', 'logt'],
+                           ['feh', 'feh', 'feh', 'feh'],
+                           # Cross-Quartic
                            ['logt', 'logt', 'feh', 'feh'],
                            ['logt', 'logt', 'logg', 'logg'],
                            ['feh', 'feh', 'logg', 'logg'],
-                           ['logt', 'logt', 'logt', 'logt', 'logt']
+                           # Quintic
+                           ['logt', 'logt', 'logt', 'logt', 'logt'],
                            )
 
 # Warm Dwarfs
@@ -116,29 +137,42 @@ bounds['Warm Dwarfs'] = {'logt': (np.log10(4000.0), np.log10(6000)),
 features['Warm Dwarfs'] = (['logt'],
                            ['feh'],
                            ['logg'],
+                           # Quadratic
                            ['logt', 'logt'],
                            ['logg', 'logg'],
                            ['feh', 'feh'],
+                           # Cross-quadratic
                            ['logt', 'feh'],
                            ['logt', 'logg'],
+                           # Cubic
                            ['logt', 'logt', 'logt'],
+                           ['logt', 'logg', 'logg'],
+                           ['feh', 'feh', 'feh'],
+                           # cross-cubic
                            ['logt', 'logt', 'logg'],
                            ['logt', 'logt', 'feh'],
-                           ['logt', 'logg', 'logg'],
+                           ['logt', 'feh', 'feh'],
+                           ['logt', 'logg', 'feh'],
+                           ['logg', 'feh', 'feh'],
+                           # Quartic
                            ['logt', 'logt', 'logt', 'logt'],
-                           ['logt', 'logg', 'logg', 'logg'],
-                           ['feh', 'logg', 'logg', 'logg'],
-                           ['feh', 'feh', 'logg', 'logg'],
-                           ['feh', 'feh', 'logt', 'logg'],
+                           ['logg', 'logg', 'logg', 'logg'],
+                           # cross-quartic
+                           ['logt', 'logt', 'logt', 'logg'],
+                           #['feh', 'feh', 'logg', 'logg'],
+                           ['feh', 'logt', 'logt', 'logt'],
                            ['feh', 'feh', 'logt', 'logt'],
+                           ['feh', 'feh', 'feh', 'logt'],
                            ['logt', 'logt', 'logg', 'logg'],
+                           ['feh', 'logt', 'logt', 'logg'],
+                           # Quintic
                            ['logt', 'logt', 'logt', 'logt', 'logt'],
-                           ['logt', 'logt', 'logg', 'logg', 'logg'],
-                           ['feh', 'feh', 'logg', 'logg', 'logg'],
-                           ['logt', 'logt', 'logt', 'feh', 'feh'],
-                           ['logt', 'logt', 'logt', 'logg', 'logg', 'logg'],
-                           ['logt', 'logt', 'logt', 'feh', 'feh', 'feh'],
-                           ['logt', 'logt', 'logt', 'logt', 'logt', 'logt']
+                           #['logt', 'logt', 'logg', 'logg', 'logg'],
+                           #['feh', 'feh', 'logg', 'logg', 'logg'],
+                           #['logt', 'logt', 'logt', 'feh', 'feh'],
+                           #['logt', 'logt', 'logt', 'logg', 'logg', 'logg'],
+                           #['logt', 'logt', 'logt', 'feh', 'feh', 'feh'],
+                           #['logt', 'logt', 'logt', 'logt', 'logt', 'logt']
                            )
 
 #Hot Stars
@@ -156,6 +190,18 @@ features['Hot Stars'] = (['logt'],
                           ['logt', 'logg'],
                           ['logt', 'feh'],
                           ['logg', 'feh'],
-                          # Cubic
+                          # cubic
                           ['logt', 'logt', 'logt'],
+                          ['logg', 'logg', 'logg'],
+                          ['feh', 'feh', 'feh'],
+                          # cross-cubic
+                          ['logt', 'logg', 'feh'],
+                          ['logt', 'logt', 'feh'],
+                          ['logt', 'logt', 'logg'],
+                          ['feh', 'feh', 'logt'],
+                          ['feh', 'feh', 'logg'],
+                          ['logt', 'logg', 'logg'],
+                          ['feh', 'logg', 'logg'],
+                          # quartic
+                          ['logt', 'logt', 'logt', 'logt'],
                           )
