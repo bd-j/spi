@@ -169,6 +169,7 @@ def combine_miles_c3k(mlib='', clib='', c3k_weight=1e-1,
 
     # add C3K
     if all_c3k:
+        # Don't remove C3K stars based on MILES locations.  We will do it later
         miles = None
     else:
         miles = mlib

@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as pl
 from matplotlib.backends.backend_pdf import PdfPages
 
+from .utils import dict_struct
 
 props = dict(boxstyle='round', facecolor='w', alpha=0.5)
 
@@ -9,6 +10,14 @@ def boxsmooth(x, width=10):
     if x is None:
         return None
     return np.convolve(x, np.ones(width*1.0) / width, mode='same')
+
+
+def get_c3k_spectrum(c3k_model, outwave=None, **params):
+    """Get a C3k spectrum interpolated to the correct wavelength
+    """
+    cwave, cspec, _ = c3k_model.get_star_spectrum(**params)
+    spec = np.interp(outwave, cwave / 1e4, cspec)
+    return spec
 
 
 def specpages(filename, wave, pred, obs, unc, labels,
@@ -39,7 +48,6 @@ def specpages(filename, wave, pred, obs, unc, labels,
                 p, o, u, r = [boxsmooth(x, nbox) for x in [p, o, u, r]]
             fig, ax, s = zoom_lines(wave, p, o, uncertainties=u, c3k=r, **kwargs)
             stats.append(s)
-            ax.set_xlim(0.35, 2.5)
             values['inhull'] = inhull[i]
             values['inbounds'] = inbounds[i]
             ti = ("{name:s}: teff={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}, In bounds={inbounds}").format(**values)
@@ -64,7 +72,7 @@ def zoom_lines(wave, predicted, observed, uncertainties=None,
     fig, axes = pl.subplots(int(ny), int(nx), figsize=figsize)
 
     # set up to hold stats
-    meanrms = np.array(nline, 2)
+    meanrms = np.zeros([nline, 2])
     
     for i, (line, (lo, hi)) in enumerate(showlines.items()):
         if nline > 1:

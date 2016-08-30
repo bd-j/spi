@@ -35,7 +35,13 @@ def make_struct(**label_dict):
             except(TypeError, ValueError):
                 pass
         return labels
- 
+
 
 def within(bound, value):
     return (value < bound[1]) & (value > bound[0])
+
+
+def within_bounds(bounds, labels):
+    inbounds = np.ones(len(label), dtype=bool)
+    for n, b in bounds.items():
+        inbounds = inbounds & within(b, labels[n])

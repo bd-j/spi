@@ -7,8 +7,8 @@ import h5py
 
 from combined_model import CombinedInterpolator
 from psi.comparison_models import PiecewiseC3K
-from psi.utils import dict_struct, within, flatten_struct
-from psi.plotting import *
+from psi.utils import dict_struct, within_bounds
+from psi.plotting import quality_map, bias_variance, specpages
 
 from combined_params import bounds, features, pad_bounds
 
@@ -39,14 +39,6 @@ def get_stats(wave, observed, predicted, snr,
     chisq = np.nansum((chi**2)[:,imin:imax], axis=1)
 
     return chi_bias_spectrum, chi_var_spectrum, chisq
-
-
-def get_c3k_spectrum(c3k_model, outwave=None, **params):
-    """Get a C3k spectrum interpolated to the correct wavelength
-    """
-    cwave, cspec, _ = c3k_model.get_star_spectrum(**params)
-    spec = np.interp(outwave, cwave / 1e4, cspec)
-    return spec
 
 
 def get_interpolator(mlib='', regime='', c3k_weight=1e-1, snr_max=1e3,
@@ -109,7 +101,7 @@ def leave_one_out(spi, loo_indices, retrain=True, **extras):
     return spi, predicted, inhull
 
 
-def loo(mlib='', regime='Warm Giants', debug=False, outroot=None, nbox=-1, **kwargs):
+def loo(mlib='', regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
     """
     """
     if outroot is None:
@@ -119,36 +111,44 @@ def loo(mlib='', regime='Warm Giants', debug=False, outroot=None, nbox=-1, **kwa
         outroot = '{regime}_unc={unc}_cwght={c3k_weight:04.3f}'.format(**pdict)
 
     # --- Build models ----
+
     spi = get_interpolator(mlib, regime=regime, **kwargs)
     clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
     c3k_model = PiecewiseC3K(libname=clibname, use_params=['logt', 'logg', 'feh'],
                              verbose=False, n_neighbors=0, log_interp=True,
                              rescale_libparams=False, in_memory=True)
 
-
     # --- Leave-one-out retraining ---
+
     ts = time.time()
     # These are the indices in the full library of the training spectra
     loo_indices = spi.training_indices.copy()
     # Only leave out MILES
     miles = spi.training_labels['miles_id'] != 'c3k'
     loo_indices = loo_indices[miles]
-    # But keep track of whether in padded region
-    inbounds = np.ones(len(loo_indices), dtype=bool)
-    for n, b in bounds[regime].items():
-        inbounds = inbounds & within(b, spi.library_labels[loo_indices][n])
     # Now do the leave out, with or without retraining
     spi, predicted, inhull = leave_one_out(spi, loo_indices, **kwargs)
+
     print('time to retrain {} models: {:.1f}s'.format(len(loo_indices), time.time()-ts))
 
     # --- Useful arrays and Stats ---
+
+    labels = spi.library_labels[loo_indices]
+    # Keep track of whether MILES stars in padded region
+    inbounds = within_bounds(bounds[regime], labels)
     wave = spi.wavelengths
     observed = spi.library_spectra[loo_indices, :]
     obs_unc = observed / spi.library_snr[loo_indices, :]
     snr = observed / obs_unc
-    bias, variance, chisq = get_stats(spi.wavelengths, observed[inbounds,:],
+    bias, variance, chisq = get_stats(wave, observed[inbounds,:],
                                       predicted[inbounds,:], snr[inbounds,:], **kwargs)
     sigma = np.sqrt(variance)
+
+    # --- Write output ---
+
+    spi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
+    write_results(outroot, spi, bounds[regime],
+                  wave, predicted, observed, obs_unc, labels)
 
     # --- Make Plots ---
 
@@ -157,79 +157,39 @@ def loo(mlib='', regime='Warm Giants', debug=False, outroot=None, nbox=-1, **kwa
     sax.set_ylim(max(-100, min(-1, np.nanmin(sigma[100:-100]), np.nanmin(bias[100:-100]))),
                  min(1000, max(30, np.nanmax(bias[100:-100]), np.nanmax(sigma[100:-100]))))
     sfig.savefig('{}_biasvar.pdf'.format(outroot))
-
     # Plot a map of total variance as a function of label
-    labels = spi.library_labels[loo_indices]
     quality, quality_label = np.log10(chisq), r'$log \, \chi^2$'
     mapfig, mapaxes = quality_map(labels[inbounds], quality, quality_label=quality_label)
     mapfig.savefig('{}_qmap.pdf'.format(outroot))
+    if plotspec:
+        # plot full SED
+        filename = '{}_sed.pdf'.format(outroot)
+        fstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
+                          c3k_model=c3k_model, inbounds=inbounds, inhull=inhull,
+                          showlines={'Full SED': (0.37, 2.5)}, show_native=False)
+        # plot zoom-ins around individual lines
+        filename = '{}_lines.pdf'.format(outroot)
+        lstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
+                          c3k_model=c3k_model, inbounds=inbounds, inhull=inhull,
+                          showlines=showlines, show_native=True)
 
-    # plot full SED
-    # filename = '{}_sed.pdf'.format(outroot)
-    # fstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
-    #                   c3k_model=c3k_model, inbounds=inbounds, inhull=inhull
-    #                   showlines={'Full SED': (0.37, 2.5)}, show_native=False)
-    # plot zoom-ins around individual lines
-    # filename = '{}_lines.pdf'.format(outroot)
-    # lstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
-    #                  c3k_model=c3k_model, inbounds=inbounds, inhull=inhull
-    #                  showlines=showlines, show_native=True)
-    with PdfPages('{}_sed.pdf'.format(outroot)) as pdf:
-        sed = {'Full SED': (0.37, 2.5)}
-        for i, j in enumerate(loo_indices):
-            if not inbounds[i]:
-                continue
-            values = dict_struct(spi.library_labels[j])
-            ref = get_c3k_spectrum(c3k_model, outwave=spi.wavelengths, **values)
-            p, o, u, r = predicted[i,:], observed[i,:], obs_unc[i,:], ref
-            if nbox > 0:
-                p, o, u, r = [boxsmooth(x, nbox) for x in [p, o, u, r]]
-            fig, ax = zoom_lines(spi.wavelengths, p, o,uncertainties=u, c3k=r,
-                                 figsize=(8.5, 7), show_native=False, showlines=sed)
-            ax.set_xlim(0.35, 2.5)
-            values['inhull'] = inhull[i]
-            values['inbounds'] = inbounds[i]
-            ti = ("{name:s}: teff={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}, In bounds={inbounds}").format(**values)
-            fig.suptitle(ti)
-            pdf.savefig(fig)
-            pl.close(fig)
-
-    # plot zoom ins around individual lines
-    with PdfPages('{}_lines.pdf'.format(outroot)) as pdf:
-        for i, j in enumerate(loo_indices):
-            if not inbounds[i]:
-                continue
-            values = dict_struct(spi.library_labels[j])
-            ref = get_c3k_spectrum(c3k_model, outwave=spi.wavelengths, **values)
-            fig, ax = zoom_lines(spi.wavelengths, predicted[i,:], observed[i,:],
-                                 uncertainties=obs_unc[i,:], c3k=ref,
-                                 showlines=showlines)
-            values['inhull'] = inhull[i]
-            values['inbounds'] = inbounds[i]
-            ti = ("{name:s}: teff={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}, In bounds={inbounds}").format(**values)
-            fig.suptitle(ti)
-            pdf.savefig(fig)
-            pl.close(fig)
-            
     print('finished training and plotting in {:.1f}'.format(time.time()-ts))
-    
-    # --- Write output ---
 
-    spi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
-    
+    return spi, loo_indices, predicted
+
+
+def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels):
     import json
     with h5py.File('{}_results.h5'.format(outroot), 'w') as f:
         w = f.create_dataset('wavelengths', data=wave)
-        obs = f.create_dataset('observed', data=observed)
-        mod = f.create_dataset('predicted', data=predicted)
-        unc = f.create_dataset('uncertainty', data=obs_unc)
-        p = f.create_dataset('parameters', data=spi.library_labels[loo_indices])
+        o = f.create_dataset('observed', data=obs)
+        p = f.create_dataset('predicted', data=pred)
+        u = f.create_dataset('uncertainty', data=unc)
+        l = f.create_dataset('parameters', data=labels)
         f.attrs['terms'] = json.dumps(spi.features)
-        f.attrs['bounds'] = json.dumps(bounds[regime])
+        f.attrs['bounds'] = json.dumps(bounds)
         c = f.create_dataset('coefficients', data=spi.coeffs)
         r = f.create_dataset('reference_spectrum', data=spi.reference_spectrum)
-
-    return spi, loo_indices, predicted
 
 
 def run_matrix(**run_params):
@@ -247,6 +207,11 @@ def run_matrix(**run_params):
 
 if __name__ == "__main__":
 
+    try:
+        test = sys.argv[1] == 'test'
+    except(IndexError):
+        test = False
+
     run_params = {'retrain': False,
                   'padding': True,
                   'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
@@ -257,6 +222,9 @@ if __name__ == "__main__":
                   'nbox': -1,
                   }
 
-    #spi, inds, pred = loo(regime='Cool Dwarfs', c3k_weight=1e-3, fake_weights=False, **run_params)
-
-    run_matrix(**run_params)
+    if test:
+        print('Test mode')
+        spi, inds, pred = loo(regime='Cool Dwarfs', c3k_weight=1e-3, fake_weights=False,
+                              outroot='test', **run_params)
+    else:
+        run_matrix(**run_params)
