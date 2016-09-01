@@ -101,7 +101,7 @@ def leave_one_out(spi, loo_indices, retrain=True, **extras):
     return spi, predicted, inhull
 
 
-def loo(mlib='', regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
+def loo(regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
     """
     """
     if outroot is None:
@@ -112,10 +112,10 @@ def loo(mlib='', regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **k
 
     # --- Build models ----
 
-    spi = get_interpolator(mlib, regime=regime, **kwargs)
+    spi = get_interpolator(regime=regime, **kwargs)
     clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
     c3k_model = PiecewiseC3K(libname=clibname, use_params=['logt', 'logg', 'feh'],
-                             verbose=False, n_neighbors=0, log_interp=True,
+                             verbose=False, n_neighbors=1, log_interp=True,
                              rescale_libparams=False, in_memory=True)
 
     # --- Leave-one-out retraining ---
@@ -136,7 +136,7 @@ def loo(mlib='', regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **k
     labels = spi.library_labels[loo_indices]
     # Keep track of whether MILES stars in padded region
     inbounds = within_bounds(bounds[regime], labels)
-    wave = spi.wavelengths
+    wave = spi.wavelengths.copy()
     observed = spi.library_spectra[loo_indices, :]
     obs_unc = observed / spi.library_snr[loo_indices, :]
     snr = observed / obs_unc
@@ -148,7 +148,7 @@ def loo(mlib='', regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **k
 
     spi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
     write_results(outroot, spi, bounds[regime],
-                  wave, predicted, observed, obs_unc, labels)
+                  wave, predicted, observed, obs_unc, labels, **kwargs)
 
     # --- Make Plots ---
 
@@ -178,7 +178,7 @@ def loo(mlib='', regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **k
     return spi, loo_indices, predicted
 
 
-def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels):
+def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels, **extras):
     import json
     with h5py.File('{}_results.h5'.format(outroot), 'w') as f:
         w = f.create_dataset('wavelengths', data=wave)
@@ -188,6 +188,7 @@ def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels):
         l = f.create_dataset('parameters', data=labels)
         f.attrs['terms'] = json.dumps(spi.features)
         f.attrs['bounds'] = json.dumps(bounds)
+        f.attrs['options'] = json.dumps(extras)
         c = f.create_dataset('coefficients', data=spi.coeffs)
         r = f.create_dataset('reference_spectrum', data=spi.reference_spectrum)
 
@@ -195,12 +196,12 @@ def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels):
 def run_matrix(**run_params):
     from itertools import product
     nmiles = [78, 15, 68, 6, 35]
-    regimes = ['Hot Stars', 'Warm Giants', 'Warm Dwarfs', 'Cool Giants', 'Cool Dwarfs']
+    regimes = ['Warm Dwarfs', 'Cool Giants', 'Cool Dwarfs']
     fake_weights = [ False]
     c3k_weight = [1e-9, 1e-3, 1e-2]
 
     for regime, wght, fake_unc in product(regimes, c3k_weight, fake_weights):
-        outroot = 'figures_v2/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
+        outroot = 'figures_v3/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
                                                     not fake_unc, wght)
         _ = loo(regime=regime, c3k_weight=wght, fake_weights=fake_unc, outroot=outroot, **run_params)
 
@@ -217,14 +218,14 @@ if __name__ == "__main__":
                   'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
                   'snr_max': 300,
                   'mask_mann': True,
-                  'mlib': '/Users/bjohnson/Projects/psi/data/combined/culled_lib_w_mdwarfs_w_unc_w_allc3k.h5',
+                  'mlib': '/Users/bjohnson/Projects/psi/data/combined/culled_libv2_w_mdwarfs_w_unc_w_allc3k.h5',
                   'snr_threshold': 1e-10,
                   'nbox': -1,
                   }
 
     if test:
         print('Test mode')
-        spi, inds, pred = loo(regime='Cool Dwarfs', c3k_weight=1e-3, fake_weights=False,
+        spi, inds, pred = loo(regime='Warm Dwarfs', c3k_weight=1e-3, fake_weights=False,
                               outroot='test', **run_params)
     else:
         run_matrix(**run_params)

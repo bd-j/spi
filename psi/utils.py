@@ -42,6 +42,7 @@ def within(bound, value):
 
 
 def within_bounds(bounds, labels):
-    inbounds = np.ones(len(label), dtype=bool)
+    inbounds = np.ones(len(labels), dtype=bool)
     for n, b in bounds.items():
         inbounds = inbounds & within(b, labels[n])
+    return inbounds

@@ -41,6 +41,7 @@ def specpages(filename, wave, pred, obs, unc, labels,
                 continue
             values = dict_struct(l)
             if c3k_model is not None:
+                #print(l)
                 r = get_c3k_spectrum(c3k_model, outwave=wave, **values)
             else:
                 r = None

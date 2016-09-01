@@ -38,7 +38,6 @@ class PiecewiseC3K(StarBasis):
             self._spectra = self._spectra[good, :]
         else:
             self._spectra = f['spectra']
-            
 
         # Renormalize to Lsun/Hz/solar luminosity
         logl, log4pi = 0.0, np.log10(4 * np.pi)
