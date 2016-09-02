@@ -196,12 +196,12 @@ def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels, **extras):
 def run_matrix(**run_params):
     from itertools import product
     nmiles = [78, 15, 68, 6, 35]
-    regimes = ['Warm Dwarfs', 'Cool Giants', 'Cool Dwarfs']
+    regimes = ['Hot Stars', 'Warm Giants', 'Warm Dwarfs', 'Cool Giants', 'Cool Dwarfs']
     fake_weights = [ False]
     c3k_weight = [1e-9, 1e-3, 1e-2]
 
     for regime, wght, fake_unc in product(regimes, c3k_weight, fake_weights):
-        outroot = 'figures_v3/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
+        outroot = 'figures_v4/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
                                                     not fake_unc, wght)
         _ = loo(regime=regime, c3k_weight=wght, fake_weights=fake_unc, outroot=outroot, **run_params)
 
@@ -217,8 +217,8 @@ if __name__ == "__main__":
                   'padding': True,
                   'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
                   'snr_max': 300,
-                  'mask_mann': True,
-                  'mlib': '/Users/bjohnson/Projects/psi/data/combined/culled_libv2_w_mdwarfs_w_unc_w_allc3k.h5',
+                  'mask_mann': False,
+                  'mlib': '/Users/bjohnson/Projects/psi/data/combined/culled_libv3tc_w_mdwarfs_w_unc_w_allc3k.h5',
                   'snr_threshold': 1e-10,
                   'nbox': -1,
                   }

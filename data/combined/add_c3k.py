@@ -205,14 +205,14 @@ if __name__ == "__main__":
     #clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
     clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
     #mlibname = '/Users/bjohnson/Projects/psi/data/combined/with_mdwarfs_culled_lib_snr_cut.h5'
-    mlibname = '/Users/bjohnson/Projects/psi/data/combined/culled_libv2_w_mdwarfs_w_unc.h5'
+    mlibname = '/Users/bjohnson/Projects/psi/data/combined/culled_libv3_w_conv_mdwarfs_w_unc_tc.h5'
     #clib = h5py.File(clibname, 'r')
     #mlib = h5py.File(mlibname, 'r')
 
 
     #outname = 'culled_lib_w_unc_w_c3k.h5'
     #combdat = combine_miles_c3k(mlibname, clibname, outname=outname, mask_mann=True, broaden=False)
-    outname = 'culled_libv2_w_mdwarfs_w_unc_w_allc3k.h5'
+    outname = 'culled_libv3tc_w_mdwarfs_w_unc_w_allc3k.h5'
     combdat = combine_miles_c3k(mlibname, clibname, outname=outname, all_c3k=True, broaden=False)
 
     #clib.close()
