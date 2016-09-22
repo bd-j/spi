@@ -201,7 +201,7 @@ def run_matrix(**run_params):
     c3k_weight = [1e-3]
 
     for regime, wght, fake_unc in product(regimes, c3k_weight, fake_weights):
-        outroot = 'figures_v5/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
+        outroot = 'results/figures_v5/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
                                                     not fake_unc, wght)
         _ = loo(regime=regime, c3k_weight=wght, fake_weights=fake_unc, outroot=outroot, **run_params)
 

@@ -85,7 +85,7 @@ class CKCInterpolator(SimplePSIModel):
 
         self.reset_mask()
         # remove zero spectra
-        bad = np.where(np.max(self.library_spectra, axis=-1) <= 0)
+        bad = np.where(np.max(self.library_spectra, axis=-1) <= 1e-33)
         if len(bad[0]) > 0:
             self.leave_out(bad[0])
         
