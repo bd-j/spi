@@ -198,10 +198,10 @@ def run_matrix(**run_params):
     nmiles = [78, 15, 68, 6, 35]
     regimes = ['Hot Stars', 'Warm Giants', 'Warm Dwarfs', 'Cool Giants', 'Cool Dwarfs']
     fake_weights = [ False]
-    c3k_weight = [1e-9, 1e-3, 1e-2]
+    c3k_weight = [1e-3]
 
     for regime, wght, fake_unc in product(regimes, c3k_weight, fake_weights):
-        outroot = 'figures_v4/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
+        outroot = 'figures_v5/{}_unc={}_cwght={:04.3f}'.format(regime.replace(' ','_'),
                                                     not fake_unc, wght)
         _ = loo(regime=regime, c3k_weight=wght, fake_weights=fake_unc, outroot=outroot, **run_params)
 
