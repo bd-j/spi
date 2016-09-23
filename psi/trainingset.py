@@ -6,6 +6,16 @@ __all__ = ["TrainingSet"]
 
 class TrainingSet(object):
 
+    """This object loads and stores the full spectral library from which the
+    training data are drawn, and handles masking and unmasking specific spectra
+    based on various criteria.  It also has a method for renormalizing the
+    spectra.  It is meant to be inherited by the PSIModel classes, which will
+    operate on the selected training data.
+
+    The unmasked spectra and labels are accessed through the `training_spectra`
+    and `training_labels` attributes.
+    """
+
     def __init__(self):
         """This object is only meant to be inherited.
         """
@@ -52,6 +62,14 @@ class TrainingSet(object):
         self.build_training_info()
         self.reset()
 
+    def reset(self):
+        """Implemented by subclasses"""
+        pass
+
+    def build_training_info(self):
+        """Implemented by subclasses"""
+        pass
+        
     def restrict_sample(self, bounds=None, **extras):
         """Remove training objects that are not within some sample.
         """
@@ -73,6 +91,10 @@ class TrainingSet(object):
         # self.training_labels = np.delete(self.training_labels, inds)
 
     def delete_masked(self):
+        """Remove masked spectra from the training set entirely.  This can
+        speed up later operations, but is irreversible, and will change indices
+        of individual spectra that remain.
+        """
         self.library_spectra = self.library_spectra[self.library_mask, :]
         self.library_labels = self.library_labels[self.library_mask]
         if self.has_errors:
@@ -80,7 +102,8 @@ class TrainingSet(object):
         self.reset_mask()
 
     def renormalize_library_spectra(self, normwave=None, bylabel=None):
-        """Renormalize the spectra by some quantity.
+        """Renormalize the spectra by some quantity.  This can either be the
+        flux at a specfic wavelength, or one of the library_labels
         """
         if normwave is not None:
             ind_wave = np.argmin(np.abs(self.wavelengths - normwave))

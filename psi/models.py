@@ -5,7 +5,7 @@ try:
 except:
     pass
 from .utils import *
-from .library import TrainingSet
+from .trainingset import TrainingSet
 
 
 __all__ = ["PSIModel", "SimplePSIModel", "FastPSIModel"]
@@ -20,8 +20,9 @@ class PSIModel(TrainingSet):
         self.select(**kwargs)
 
     def build_training_info(self):
-        """Calculate and store quantities about the training set that will be
-        used to normalize labels and spectra.
+        """Calculate and store quantities about the training set that can be
+        used to normalize labels and spectra. This will typically be
+        subclassed.
         """
         self.reference_spectrum = np.ones(self.n_wave)
         
@@ -103,8 +104,15 @@ class PSIModel(TrainingSet):
 
     def get_weights(self, ind_wave, spec):
         """Get weights for each star, for each wavelength.  
+
+        :param ind_wave:
+            The indices of the wavelengths at which to calculate the weights.
+
         :param spec:
             Linear flux units.
+
+        :returns weights:
+            The weights to be applied to each data pooint in weighted regression.
         """
         if (not self.has_errors) or (self.unweighted):
             return None

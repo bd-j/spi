@@ -1,7 +1,11 @@
+# Subclasses of the generic SimplePSIModel used for specific spectral data.
+# This mostly involves over-riding the load_training_data method of the
+# TrainingSet object inherited by SimplePSIModel.
+
 import numpy as np
 from numpy.lib import recfunctions as rfn
 import h5py
-from .model import SimplePSIModel
+from .models import SimplePSIModel
 
 
 __all__ = ["MILESInterpolator", "CKCInterpolator"]

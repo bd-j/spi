@@ -2,7 +2,7 @@ import numpy as np
 import astropy.io.fits as pyfits
 import h5py
 from prospect.sources import StarBasis#, BigStarBasis
-from model import within
+from .utils import within
 
 __all__ = ["PiecewiseC3K", "PiecewiseMILES", "TGM"]
 
