@@ -1,10 +1,15 @@
 import sys
+
 import numpy as np
 import matplotlib.pyplot as pl
+
 from psi.library_models import CKCInterpolator
-from psi.utils import dict_struct
+from psi.utils import dict_struct, within_bounds
+from psi.plotting import quality_map, bias_variance, specpages
+
 
 lightspeed = 2.998e18
+
 
 # The PSI Model
 mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
@@ -56,14 +61,13 @@ def leave_one_out(spi, loo_indices, retrain=True, **extras):
         # Get full sample and the parameters of the star to leave out
         spec = spi.library_spectra[j, :]
         labels = dict_struct(spi.library_labels[j])
-        #labels = dict([(n, tlabels[n]) for n in spi.label_names])
         # Leave one out and re-train
         if retrain:
             spi.library_mask[j] = False
             inhull[i] = spi.inside_hull(labels)
             spi.train()
         predicted[i, :] = spi.get_star_spectrum(**labels)
-        # now put it back
+        # Now put it back
         if retrain:
             spi.library_mask[j] = True
     return spi, predicted, inhull
@@ -85,10 +89,9 @@ if __name__ == "__main__":
     axes[1].plot(spi.wavelengths, specsun / spi.training_spectra[solar,:][0])
     pl.show()
 
-    # --- Run leave one out on everything ---
+    # --- Run leave one out on (almost) everything ---
     loo_indices = spi.training_indices.copy()
     spi, predicted, inhull = leave_one_out(spi, loo_indices)
-
 
     # --- Useful arrays and Stats ---
     labels = spi.library_labels[loo_indices]
@@ -103,10 +106,7 @@ if __name__ == "__main__":
                                       predicted[inbounds,:], snr, **kwargs)
     sigma = np.sqrt(variance)
 
-
-
     # --- Write output ---
-
     spi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
     write_results(outroot, spi, bounds[regime],
                   wave, predicted, observed, obs_unc, labels, **kwargs)

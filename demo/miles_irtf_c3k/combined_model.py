@@ -81,11 +81,3 @@ class CombinedInterpolator(SimplePSIModel):
         bad = self.training_indices[c3k][inside]
         self.leave_out(bad)
         return bad
-
-    def dump_coeffs_ascii(self, filename='test.dat'):
-        beta = np.vstack([self.wavelengths, self.reference_spectrum, self.coeffs.T])
-        hdr = 'F = beta[0] * exp(beta[1] + beta[2:]*X) \n'
-        hdr += ('X = ' + (self.n_features-1) * '{}\n').format(*self.features)
-        hdr += 'lambda(micron), beta\n'
-        np.savetxt(filename, beta.T, header=hdr)
-

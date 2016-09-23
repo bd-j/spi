@@ -1,7 +1,8 @@
 import numpy as np
 
 
-__all__ = ["flatten_struct", "dict_struct", "make_struct", "within"]
+__all__ = ["flatten_struct", "dict_struct", "make_struct",
+           "within", "within_bounds"]
 
 
 def flatten_struct(struct, use_labels=None):

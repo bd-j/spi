@@ -4,12 +4,38 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from .utils import dict_struct
 
+__all__ = ["get_stats", "bias_variance", "quality_map",
+           "specpages", "zoom_lines",
+           "boxsmooth", "get_c3k_spectrum",
+           "flux_teff"]
+
 props = dict(boxstyle='round', facecolor='w', alpha=0.5)
+
 
 def boxsmooth(x, width=10):
     if x is None:
         return None
     return np.convolve(x, np.ones(width*1.0) / width, mode='same')
+
+
+def get_stats(wave, observed, predicted, snr,
+              wmin=0.38, wmax=2.4, **extras):
+    """Calculate useful statistics
+    """
+    imin = np.argmin(np.abs(wave - wmin))
+    imax = np.argmin(np.abs(wave - wmax))
+    delta = predicted / observed - 1.0
+    chi = delta * snr
+
+    var_spectrum = np.nanvar(delta, axis=0)
+    bias_spectrum = np.nanmean(delta, axis=0)
+    var_total = np.nanvar(delta[:, imin:imax], axis=1)
+    
+    chi_bias_spectrum = np.nanmean(chi, axis=0)
+    chi_var_spectrum = np.nanvar(chi, axis=0)
+    chisq = np.nansum((chi**2)[:,imin:imax], axis=1)
+
+    return chi_bias_spectrum, chi_var_spectrum, chisq
 
 
 def get_c3k_spectrum(c3k_model, outwave=None, **params):

@@ -8,7 +8,7 @@ import h5py
 from combined_model import CombinedInterpolator
 from psi.comparison_models import PiecewiseC3K
 from psi.utils import dict_struct, within_bounds
-from psi.plotting import quality_map, bias_variance, specpages
+from psi.plotting import get_stats, quality_map, bias_variance, specpages
 
 from combined_params import bounds, features, pad_bounds
 
@@ -19,26 +19,6 @@ showlines = {'CO': (2.26, 2.35),
              'NaD': (0.580, 0.596),
              r'H$\beta$': (0.482, 0.492),
              'NaI': (0.816, 0.824)}
-
-
-def get_stats(wave, observed, predicted, snr,
-              wmin=0.38, wmax=2.4, **extras):
-    """Calculate useful statistics
-    """
-    imin = np.argmin(np.abs(wave - wmin))
-    imax = np.argmin(np.abs(wave - wmax))
-    delta = predicted / observed - 1.0
-    chi = delta * snr
-
-    var_spectrum = np.nanvar(delta, axis=0)
-    bias_spectrum = np.nanmean(delta, axis=0)
-    var_total = np.nanvar(delta[:, imin:imax], axis=1)
-    
-    chi_bias_spectrum = np.nanmean(chi, axis=0)
-    chi_var_spectrum = np.nanvar(chi, axis=0)
-    chisq = np.nansum((chi**2)[:,imin:imax], axis=1)
-
-    return chi_bias_spectrum, chi_var_spectrum, chisq
 
 
 def get_interpolator(mlib='', regime='', c3k_weight=1e-1, snr_max=1e3,

@@ -151,6 +151,18 @@ class PSIModel(TrainingSet):
             return np.squeeze(spectrum.T * self.reference_spectrum), is_inside
         return np.squeeze(spectrum.T * self.reference_spectrum)
 
+    def dump_coeffs_ascii(self, filename='test.dat'):
+        """Write wavelengths, reference spectrum, and coefficients to an ascii file"
+        """
+        beta = np.vstack([self.wavelengths, self.reference_spectrum, self.coeffs.T])
+        if self.logify_flux:
+            hdr = 'F = beta[0] * exp(beta[1] + beta[2:]*X) \n'
+        else:
+            hdr = 'F = beta[0] * (beta[1] + beta[2:]*X) \n'
+        hdr += ('X = ' + (self.n_features-1) * '{}\n').format(*self.features)
+        hdr += 'lambda(micron), beta\n'
+        np.savetxt(filename, beta.T, header=hdr)
+
     @property
     def label_names(self):
         return self.library_labels.dtype.names
