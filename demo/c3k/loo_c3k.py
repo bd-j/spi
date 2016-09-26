@@ -5,44 +5,29 @@ import matplotlib.pyplot as pl
 
 from psi.library_models import CKCInterpolator
 from psi.utils import dict_struct, within_bounds
-from psi.plotting import quality_map, bias_variance, specpages
+from psi.plotting import get_stats, quality_map, bias_variance, specpages
 
+from c3k_regimes import bounds, features, pad_bounds
 
 lightspeed = 2.998e18
+showlines = {'CaT': (8450, 8700),
+             'NaD': (5800, 5960),
+             r'H$\beta$': (4820, 4920),
+             'U':(3500, 4050),
+             'B': (4000, 4500),
+             'Mgb': (4900, 5250),
+             }
 
 
 # The PSI Model
 mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
-fgk_bounds = {'logt': (np.log10(4000.0), np.log10(6000.0)),
-              'logg': (3.5, 5.5),
-              'feh': (-2, 0.5)}
-
+#mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
 spi = CKCInterpolator(training_data=mlib, logify_flux=True)
-spi.features = (['logt'], ['feh'], ['logg'],
-                # Quadratic terms
-                ['logt', 'logt'], ['feh', 'feh'], ['logg', 'logg'],
-                # Quadratic cross terms
-                ['logt', 'feh'], ['logg', 'logt'], ['logg', 'feh'],
-                # Cubic terms
-                ['feh', 'feh', 'feh'], ['logt', 'logt', 'logt'], ['logg', 'logg', 'logg'],
-                # Cubic cross terms
-                ['logt', 'logt', 'logg'], ['logt', 'logg', 'logg'],
-                ['logt', 'logt', 'feh'], ['logt', 'feh', 'feh'],
-                ['logg', 'logg', 'feh'], ['logg', 'feh', 'feh'],
-                ['feh', 'logg', 'logt'],
-                # Quartic terms
-                ['logt', 'logt', 'logt', 'logt'],
-                ['feh', 'feh', 'feh', 'feh'],
-                ['logg', 'logg', 'logg', 'logg'],
-                # Selected Quartic cross terms
-                ['logt', 'logt', 'feh', 'feh'], ['logt', 'logt', 'logt', 'feh'],
-                ['logt', 'feh', 'feh', 'feh'],
-                # Quintic
-                #['logt', 'logt', 'logt', 'logt', 'logt'],
-                )
-
-spi.select(bounds=fgk_bounds, delete=True)
+spi.features = features['Warm Dwarfs']
 spi.delete_masked()
+spi.select(bounds=bounds['Warm Dwarfs'], delete=True)
+
+
 
 def leave_one_out(spi, loo_indices, retrain=True, **extras):
     """ --- Leave-one-out ----
@@ -74,6 +59,10 @@ def leave_one_out(spi, loo_indices, retrain=True, **extras):
 
 
 if __name__ == "__main__":
+
+    outroot = 'figures/test'
+    plotspec = True
+
     # Do a solar spectrum
     spi.train()
     params = spi.training_labels
@@ -88,43 +77,41 @@ if __name__ == "__main__":
     axes[0].plot(spi.wavelengths, specsun)
     axes[1].plot(spi.wavelengths, specsun / spi.training_spectra[solar,:][0])
     pl.show()
+    sys.exit()
 
     # --- Run leave one out on (almost) everything ---
-    loo_indices = spi.training_indices.copy()
+    loo_indices = spi.training_indices.copy()[::3]
     spi, predicted, inhull = leave_one_out(spi, loo_indices)
 
     # --- Useful arrays and Stats ---
     labels = spi.library_labels[loo_indices]
     # Keep track of whether MILES stars in padded region
     #inbounds = within_bounds(bounds[regime], labels)
-    inbounds = slice(None)
+    inbounds = inhull #slice(None)
     wave = spi.wavelengths.copy()
     observed = spi.library_spectra[loo_indices, :]
     obs_unc = 0
     snr = 100.0
-    bias, variance, chisq = get_stats(wave, observed[inbounds,:],
-                                      predicted[inbounds,:], snr, **kwargs)
+    wmin, wmax = 0, np.inf
+    bias, variance, chisq = get_stats(wave, observed[inbounds, :],
+                                      predicted[inbounds, :], snr,
+                                      wmin=wmin, wmax=wmax)
     sigma = np.sqrt(variance)
 
     # --- Write output ---
     spi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
-    write_results(outroot, spi, bounds[regime],
-                  wave, predicted, observed, obs_unc, labels, **kwargs)
+    #write_results(outroot, spi, fgk_bounds,
+    #              wave, predicted, observed, obs_unc, labels, **kwargs)
 
     # --- Make Plots ---
-
-    # get indices for a subset of wavelengths
-    wmin, wmax = 3800, 7200
-    imin = np.argmin(np.abs(spi.wavelengths - wmin))
-    imax = np.argmin(np.abs(spi.wavelengths - wmax))
-    imin, imax = 0, len(spi.wavelengths) - 1
 
     # Plot the bias and variance spectrum
     sfig, sax = bias_variance(wave, bias, sigma, qlabel='\chi')
     sax.set_ylim(max(-100, min(-1, np.nanmin(sigma[100:-100]), np.nanmin(bias[100:-100]))),
                  min(1000, max(30, np.nanmax(bias[100:-100]), np.nanmax(sigma[100:-100]))))
     sfig.savefig('{}_biasvar.pdf'.format(outroot))
-    # Plot a map of total variance as a function of label
+    
+    # Plot a map of "quality" as a function of label
     quality, quality_label = np.log10(chisq), r'$log \, \chi^2$'
     mapfig, mapaxes = quality_map(labels[inbounds], quality, quality_label=quality_label)
     mapfig.savefig('{}_qmap.pdf'.format(outroot))
