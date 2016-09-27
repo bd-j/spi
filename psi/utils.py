@@ -47,3 +47,10 @@ def within_bounds(bounds, labels):
     for n, b in bounds.items():
         inbounds = inbounds & within(b, labels[n])
     return inbounds
+
+
+def check_features(features):
+    for i, f in enumerate(features):
+        equal = [''.join(sorted(f)) == ''.join(sorted(cf)) for cf in features]
+        assert np.sum(equal) == 1, 'Feature {} with labels {} has a duplicate'.format(i, f)
+    return None

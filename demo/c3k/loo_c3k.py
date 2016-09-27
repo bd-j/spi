@@ -23,10 +23,9 @@ showlines = {'CaT': (8450, 8700),
 mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
 #mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
 spi = CKCInterpolator(training_data=mlib, logify_flux=True)
-spi.features = features['Warm Dwarfs']
 spi.delete_masked()
-spi.select(bounds=bounds['Warm Dwarfs'], delete=True)
-
+spi.features = features['Warm Dwarfs']
+spi.select(bounds=pad_bounds(bounds['Warm Dwarfs']))
 
 
 def leave_one_out(spi, loo_indices, retrain=True, **extras):
@@ -77,7 +76,7 @@ if __name__ == "__main__":
     axes[0].plot(spi.wavelengths, specsun)
     axes[1].plot(spi.wavelengths, specsun / spi.training_spectra[solar,:][0])
     pl.show()
-    sys.exit()
+    #sys.exit()
 
     # --- Run leave one out on (almost) everything ---
     loo_indices = spi.training_indices.copy()[::3]
