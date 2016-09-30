@@ -46,9 +46,10 @@ def get_c3k_spectrum(c3k_model, outwave=None, **params):
     return spec
 
 
+_titlestring = "{name:s}: teff={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}, In bounds={inbounds}"
 def specpages(filename, wave, pred, obs, unc, labels,
               c3k_model=None, inbounds=None, inhull=None,
-              show_outbounds=True, nbox=-1, **kwargs):
+              show_outbounds=True, tistring=_titlestring, nbox=-1, **kwargs):
     """Given arrays of spectra and labels for a set of stars, and regions to
     plot, make a multipage PDF with those spectra plotted, one page for each
     star, one panel for each spectral region.
@@ -77,7 +78,9 @@ def specpages(filename, wave, pred, obs, unc, labels,
             stats.append(s)
             values['inhull'] = inhull[i]
             values['inbounds'] = inbounds[i]
-            ti = ("{name:s}: teff={teff:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}, In bounds={inbounds}").format(**values)
+            if 'name' not in values:
+                values['name'] = ''
+            ti = (tistring).format(**values)
             fig.suptitle(ti)
             pdf.savefig(fig)
             pl.close(fig)
@@ -163,17 +166,20 @@ def bias_variance(wave, bias, sigma, qlabel='\chi'):
     return sfig, sax
 
 
-def quality_map(labels, quality, quality_label):
+def quality_map(labels, quality, quality_label, add_offsets=0.0, **extras):
     """
     """
     lab, varc = labels, quality
     l1, l2, l3 = 'logt', 'feh', 'logg'
+    ranges = dict([(l, labels[l].max() - labels[l].min()) for l in [l1, l2, l3]])
     mapfig, mapaxes = pl.subplots(1, 2, figsize=(12.5,7))
 
-    sc = mapaxes[0].scatter(lab[l1], lab[l2], marker='o', c=varc)
+    
+    rr = add_offsets * np.random.uniform(0, 1, size=len(lab))
+    sc = mapaxes[0].scatter(lab[l1] + rr*ranges[l1], lab[l2] + rr*ranges[l2], marker='o', c=varc)
     mapaxes[0].set_xlabel(l1)
     mapaxes[0].set_ylabel(l2)
-    sc = mapaxes[1].scatter(lab[l1], lab[l3], marker='o', c=varc)
+    sc = mapaxes[1].scatter(lab[l1] + rr*ranges[l1], lab[l3] + rr*ranges[l3], marker='o', c=varc)
     mapaxes[1].set_xlabel(l1)
     mapaxes[1].set_ylabel(l3)
     mapaxes[1].invert_yaxis()

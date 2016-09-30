@@ -77,7 +77,7 @@ features['Warm Dwarfs'] = (['logt'],
 bounds['Warm Giants'] = {'logt': (np.log10(4000.0), np.log10(6300)),
                          'logg': (-0.25, 3.501),
                          'feh': (-2.01, 0.51)}
-features['Warm Giants'] = ((['logt'],
+features['Warm Giants'] = (['logt'],
                            ['feh'],
                            ['logg'],
                            # Quadratic

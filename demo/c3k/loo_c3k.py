@@ -20,12 +20,13 @@ showlines = {'CaT': (8450, 8700),
 
 
 # The PSI Model
+regime = 'Warm Giants'
 mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
 #mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
 spi = CKCInterpolator(training_data=mlib, logify_flux=True)
 spi.delete_masked()
-spi.features = features['Warm Dwarfs']
-spi.select(bounds=pad_bounds(bounds['Warm Dwarfs']))
+spi.features = features[regime]
+spi.select(bounds=pad_bounds(bounds[regime]))
 
 
 def leave_one_out(spi, loo_indices, retrain=True, **extras):
@@ -35,10 +36,8 @@ def leave_one_out(spi, loo_indices, retrain=True, **extras):
     predicted = np.zeros([len(loo_indices), spi.n_wave])
     inhull = np.zeros(len(loo_indices), dtype=bool)
     if not retrain:
-        cinside = spi.remove_c3k_inside()
         spi.train()
         inhull = spi.inside_hull(spi.library_labels[loo_indices])
-        spi.library_mask[cinside] = True
     # Loop over spectra to leave out and predict
     for i, j in enumerate(loo_indices):
         if (i % 10) == 0: print('{} of {}'.format(i, len(loo_indices)))
@@ -63,24 +62,26 @@ if __name__ == "__main__":
     plotspec = True
 
     # Do a solar spectrum
-    spi.train()
-    params = spi.training_labels
-    ind_solar = np.searchsorted(np.unique(params['logt']), np.log10(5877.0))
-    logt_solar = np.unique(params['logt'])[ind_solar]
-    solar = (params['logt'] == logt_solar) & (params['feh'] == 0) & (params['logg'] == 4.5)
-    specsun = spi.get_star_spectrum(logt=logt_solar, feh=0, logg=4.5)
+    if regime == 'Warm dwarfs':
+        spi.train()
+        params = spi.training_labels
+        ind_solar = np.searchsorted(np.unique(params['logt']), np.log10(5877.0))
+        logt_solar = np.unique(params['logt'])[ind_solar]
+        solar = (params['logt'] == logt_solar) & (params['feh'] == 0) & (params['logg'] == 4.5)
+        specsun = spi.get_star_spectrum(logt=logt_solar, feh=0, logg=4.5)
 
-    import matplotlib.pyplot as pl
-    fig, axes = pl.subplots(2, 1)
-    axes[0].plot(spi.wavelengths, spi.training_spectra[solar,:][0])
-    axes[0].plot(spi.wavelengths, specsun)
-    axes[1].plot(spi.wavelengths, specsun / spi.training_spectra[solar,:][0])
-    pl.show()
+        import matplotlib.pyplot as pl
+        fig, axes = pl.subplots(2, 1)
+        axes[0].plot(spi.wavelengths, spi.training_spectra[solar,:][0])
+        axes[0].plot(spi.wavelengths, specsun)
+        axes[1].plot(spi.wavelengths, specsun / spi.training_spectra[solar,:][0])
+        pl.show()
+        
     #sys.exit()
 
     # --- Run leave one out on (almost) everything ---
     loo_indices = spi.training_indices.copy()[::3]
-    spi, predicted, inhull = leave_one_out(spi, loo_indices)
+    spi, predicted, inhull = leave_one_out(spi, loo_indices, retrain=False)
 
     # --- Useful arrays and Stats ---
     labels = spi.library_labels[loo_indices]
@@ -89,9 +90,9 @@ if __name__ == "__main__":
     inbounds = inhull #slice(None)
     wave = spi.wavelengths.copy()
     observed = spi.library_spectra[loo_indices, :]
-    obs_unc = 0
+    obs_unc = np.zeros_like(observed)
     snr = 100.0
-    wmin, wmax = 0, np.inf
+    wmin, wmax = 0, 4e4
     bias, variance, chisq = get_stats(wave, observed[inbounds, :],
                                       predicted[inbounds, :], snr,
                                       wmin=wmin, wmax=wmax)
@@ -112,19 +113,23 @@ if __name__ == "__main__":
     
     # Plot a map of "quality" as a function of label
     quality, quality_label = np.log10(chisq), r'$log \, \chi^2$'
-    mapfig, mapaxes = quality_map(labels[inbounds], quality, quality_label=quality_label)
+    mapfig, mapaxes = quality_map(labels[inbounds], quality,
+                                  quality_label=quality_label, add_offsets=True)
     mapfig.savefig('{}_qmap.pdf'.format(outroot))
     if plotspec:
+        tistring = "logt={logt:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}"
         # plot full SED
         filename = '{}_sed.pdf'.format(outroot)
         fstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
-                          c3k_model=c3k_model, inbounds=inbounds, inhull=inhull,
-                          showlines={'Full SED': (0.37, 2.5)}, show_native=False)
+                          c3k_model=None, inbounds=inbounds, inhull=inhull,
+                          showlines={'Full SED': (0.37, 2.5)}, show_native=False,
+                          tistring=tistring)
         # plot zoom-ins around individual lines
         filename = '{}_lines.pdf'.format(outroot)
         lstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
-                          c3k_model=c3k_model, inbounds=inbounds, inhull=inhull,
-                          showlines=showlines, show_native=True)
+                          c3k_model=None, inbounds=inbounds, inhull=inhull,
+                          showlines=showlines, show_native=True,
+                          tistring=tistring)
 
     print('finished training and plotting in {:.1f}'.format(time.time()-ts))
 
