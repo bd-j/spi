@@ -2,11 +2,11 @@ import numpy as np
 import h5py
 from scipy.spatial import Delaunay
 
-from psi.models import SimplePSIModel
-from psi.utils import flatten_struct
+from spi.models import SimpleSPIModel
+from spi.utils import flatten_struct
 
 
-class CombinedInterpolator(SimplePSIModel):
+class CombinedInterpolator(SimpleSPIModel):
 
     def load_training_data(self, training_data='', c3k_weight=1e-1,
                            snr_threshold=1e-10, snr_max=np.inf, **extras):

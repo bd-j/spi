@@ -1,11 +1,11 @@
-# Subclasses of the generic SimplePSIModel used for specific spectral data.
+# Subclasses of the generic SimpleSPIModel used for specific spectral data.
 # This mostly involves over-riding the load_training_data method of the
-# TrainingSet object inherited by SimplePSIModel.
+# TrainingSet object inherited by SimpleSPIModel.
 
 import numpy as np
 from numpy.lib import recfunctions as rfn
 import h5py
-from .models import SimplePSIModel
+from .models import SimpleSPIModel
 
 
 __all__ = ["MILESInterpolator", "CKCInterpolator"]
@@ -17,7 +17,7 @@ log_SB_cgs = np.log10(5.670367e-5)
 log_SB_solar = log_SB_cgs + 2 * log_rsun_cgs - log_lsun_cgs
 
 
-class MILESInterpolator(SimplePSIModel):
+class MILESInterpolator(SimpleSPIModel):
 
     def load_training_data(self, training_data='', **extras):
         """Read an HDF5 file with `parameters` a structured ndarray and
@@ -54,7 +54,7 @@ class MILESInterpolator(SimplePSIModel):
         self.reset_mask()
 
 
-class CKCInterpolator(SimplePSIModel):
+class CKCInterpolator(SimpleSPIModel):
 
     def load_training_data(self, training_data='', **extras):
         """Read an HDF5 file with `parameters` a structured ndarray and

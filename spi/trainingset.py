@@ -9,7 +9,7 @@ class TrainingSet(object):
     """This object loads and stores the full spectral library from which the
     training data are drawn, and handles masking and unmasking specific spectra
     based on various criteria.  It also has a method for renormalizing the
-    spectra.  It is meant to be inherited by the PSIModel classes, which will
+    spectra.  It is meant to be inherited by the SPIModel classes, which will
     operate on the selected training data.
 
     The unmasked spectra and labels are accessed through the `training_spectra`

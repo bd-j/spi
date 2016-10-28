@@ -118,15 +118,15 @@ def zoom_lines(wave, predicted, observed, uncertainties=None,
         ax.plot(wave[g], observed[g], alpha=alpha, label='Observed')
         if show_native:
             ax.plot(wave[g], predicted[g], color='k',
-                    alpha=alpha, label='PSI miles+c3k')
+                    alpha=alpha, label='SPI miles+c3k')
         delta = predicted[g] / observed[g]
         residual = np.median(delta)
         rms = (delta / residual - 1).std()
         meanrms[i,:] = np.array([residual, rms])
         ax.plot(wave[g], predicted[g] / residual, color='k', alpha=alpha, linestyle='--',
-                label='PSI shifted')
+                label='SPI shifted')
         values = [100*(residual-1), 100*rms, line]
-        label='PSI\nOffset: {:4.2f}%\nRMS: {:4.2f}%\n{}'.format(*values)
+        label='SPI\nOffset: {:4.2f}%\nRMS: {:4.2f}%\n{}'.format(*values)
         ax.text(0.75, 0.20, label,
                 transform=ax.transAxes, fontsize=8,
                 verticalalignment='top', bbox=props)
@@ -190,15 +190,15 @@ def quality_map(labels, quality, quality_label, add_offsets=0.0, **extras):
     return mapfig, mapaxes              
 
 
-def flux_teff(spi, nt=500, nw=5):
+def flux_teff(psi, nt=500, nw=5):
     fig, ax = pl.subplots()
     clrs = pl.rcParams['axes.color_cycle']
-    logg = np.zeros(nt) + np.median(spi.training_labels['logg'])
-    feh = np.zeros(nt) + np.median(spi.training_labels['feh'])
-    logt = np.linspace(spi.training_labels['logt'].min(), spi.training_labels['logt'].max(), nt)
-    spec, covered = spi.get_star_spectrum(logt=logt, logg=logg, feh=feh, check_coverage=True)
+    logg = np.zeros(nt) + np.median(psi.training_labels['logg'])
+    feh = np.zeros(nt) + np.median(psi.training_labels['feh'])
+    logt = np.linspace(psi.training_labels['logt'].min(), psi.training_labels['logt'].max(), nt)
+    spec, covered = psi.get_star_spectrum(logt=logt, logg=logg, feh=feh, check_coverage=True)
     
-    inds = np.linspace(spi.wavelengths.min(), spi.wavelengths.max(), nw+2)[1:-1]
+    inds = np.linspace(psi.wavelengths.min(), psi.wavelengths.max(), nw+2)[1:-1]
     for j, i in enumerate(inds):
-        ax.plot(logt, spec[covered, i], 'o', color=clr[j], label='$\lambda={}$'.format(spi.wavelengths[i]))
+        ax.plot(logt, spec[covered, i], 'o', color=clr[j], label='$\lambda={}$'.format(psi.wavelengths[i]))
         ax.plot(logt, spec[~covered, i], 'o', color=clr[j], mfc=None)

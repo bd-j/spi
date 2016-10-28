@@ -1,18 +1,18 @@
-PSI: Polynomial Spectral Interpolator
+SPI: Spectrum Polynomial Interpolations
 ========
 
 Doing the basic regression thing.
 
 
 ```python
-	from psi.library_models import MILESInterpolator as MILES
-	spi = MILES(training_data='miles_prugniel.h5', normalize_labels=False)
-	spi.renormalize_library_spectra(bylabel='luminosity')
+	from spi.library_models import MILESInterpolator as MILES
+	psi = MILES(training_data='miles_prugniel.h5', normalize_labels=False)
+	psi.renormalize_library_spectra(bylabel='luminosity')
 	# Only train on warm stars
-	spi.restrict_sample({'teff':(4000.0, 9000.0)})
+	psi.restrict_sample({'teff':(4000.0, 9000.0)})
 	# Choose polynomial features to train on, here linear terms + logt^2
-	spi.features = (['logt'], ['feh'], ['logg'], ['logt', 'logt'])
-	spi.train()
+	psi.features = (['logt'], ['feh'], ['logg'], ['logt', 'logt'])
+	psi.train()
 
     # Plot a predicted spectrum
 	spectrum = spi.get_star_spectrum(logt=3.617, logg=4.5, feh=0.0)

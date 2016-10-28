@@ -13,11 +13,11 @@ except ImportError:
     setup
 
 setup(
-    name="psi",
+    name="spi",
     version='0.1.0',
     author="Ben Johnson",
     author_email="benjamin.johnson@cfa.harvard.edu",
-    packages=["psi"],
+    packages=["spi"],
     url="",
     #license="LICENSE",
     description="Polynomial spectral interpolation",

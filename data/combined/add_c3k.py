@@ -6,8 +6,8 @@ import h5py
 from numpy.lib import recfunctions as rfn
 from scipy.spatial import Delaunay
 
-from psi.library_models import SimplePSIModel
-from psi.utils import dict_struct, flatten_struct
+from spi.library_models import SimplePSIModel
+from spi.utils import dict_struct, flatten_struct
 
 from prospect.utils.smoothing import smoothspec
 

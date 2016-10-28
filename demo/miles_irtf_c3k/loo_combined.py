@@ -6,9 +6,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 import h5py
 
 from combined_model import CombinedInterpolator
-from psi.comparison_models import PiecewiseC3K
-from psi.utils import dict_struct, within_bounds
-from psi.plotting import get_stats, quality_map, bias_variance, specpages
+from spi.comparison_models import PiecewiseC3K
+from spi.utils import dict_struct, within_bounds
+from spi.plotting import get_stats, quality_map, bias_variance, specpages
 
 from combined_params import bounds, features, pad_bounds
 
@@ -26,59 +26,59 @@ def get_interpolator(mlib='', regime='', c3k_weight=1e-1, snr_max=1e3,
     """
     """
     # --- The PSI Model ---
-    spi = CombinedInterpolator(training_data=mlib, c3k_weight=c3k_weight,
+    psi = CombinedInterpolator(training_data=mlib, c3k_weight=c3k_weight,
                                unweighted=False, snr_max=snr_max, logify_flux=True)
     # renormalize by bolometric luminosity
-    spi.renormalize_library_spectra(bylabel='luminosity')
+    psi.renormalize_library_spectra(bylabel='luminosity')
     # Use fake, constant SNR for all the MILES spectra
     if fake_weights:
-        g = spi.library_snr > 0
-        spi.library_snr[g] = 100
+        g = psi.library_snr > 0
+        psi.library_snr[g] = 100
     # mask the Mann mdwarf stars for now
     if mask_mann:
-        mann = np.where(spi.library_labels['miles_id'] == 'mdwarf')[0]
-        spi.leave_out(mann)
-    #c3k = np.where(spi.library_labels['miles_id'] == 'c3k')[0]
+        mann = np.where(psi.library_labels['miles_id'] == 'mdwarf')[0]
+        psi.leave_out(mann)
+    #c3k = np.where(psi.library_labels['miles_id'] == 'c3k')[0]
     # Choose parameter regime and features
     if padding:
         b = pad_bounds(bounds[regime], **kwargs)
     else:
         b = bounds[regime]
-    spi.restrict_sample(bounds=b)
-    spi.features = features[regime]
-    return spi
+    psi.restrict_sample(bounds=b)
+    psi.features = features[regime]
+    return psi
 
 
-def leave_one_out(spi, loo_indices, retrain=True, **extras):
+def leave_one_out(psi, loo_indices, retrain=True, **extras):
     """ --- Leave-one-out ----
     """
     # build output  arrays
-    predicted = np.zeros([len(loo_indices), spi.n_wave])
+    predicted = np.zeros([len(loo_indices), psi.n_wave])
     inhull = np.zeros(len(loo_indices), dtype=bool)
     if not retrain:
-        cinside = spi.remove_c3k_inside()
-        spi.train()
-        inhull = spi.inside_hull(spi.library_labels[loo_indices])
-        spi.library_mask[cinside] = True
+        cinside = psi.remove_c3k_inside()
+        psi.train()
+        inhull = psi.inside_hull(psi.library_labels[loo_indices])
+        psi.library_mask[cinside] = True
     # Loop over spectra to leave out and predict
     for i, j in enumerate(loo_indices):
         if (i % 10) == 0: print('{} of {}'.format(i, len(loo_indices)))
         # Get full sample and the parameters of the star to leave out
-        spec = spi.library_spectra[j, :]
-        labels = dict_struct(spi.library_labels[j])
-        #labels = dict([(n, tlabels[n]) for n in spi.label_names])
+        spec = psi.library_spectra[j, :]
+        labels = dict_struct(psi.library_labels[j])
+        #labels = dict([(n, tlabels[n]) for n in psi.label_names])
         # Leave one out and re-train
         if retrain:
-            spi.library_mask[j] = False
-            c3k_inside = spi.remove_c3k_inside()
-            inhull[i] = spi.inside_hull(labels)
-            spi.train()
-        predicted[i, :] = spi.get_star_spectrum(**labels)
+            psi.library_mask[j] = False
+            c3k_inside = psi.remove_c3k_inside()
+            inhull[i] = psi.inside_hull(labels)
+            psi.train()
+        predicted[i, :] = psi.get_star_spectrum(**labels)
         # now put it back
         if retrain:
-            spi.library_mask[j] = True
-            spi.library_mask[c3k_inside] = True
-    return spi, predicted, inhull
+            psi.library_mask[j] = True
+            psi.library_mask[c3k_inside] = True
+    return psi, predicted, inhull
 
 
 def loo(regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
@@ -92,7 +92,7 @@ def loo(regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
 
     # --- Build models ----
 
-    spi = get_interpolator(regime=regime, **kwargs)
+    psi = get_interpolator(regime=regime, **kwargs)
     clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
     c3k_model = PiecewiseC3K(libname=clibname, use_params=['logt', 'logg', 'feh'],
                              verbose=False, n_neighbors=1, log_interp=True,
@@ -102,23 +102,23 @@ def loo(regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
 
     ts = time.time()
     # These are the indices in the full library of the training spectra
-    loo_indices = spi.training_indices.copy()
+    loo_indices = psi.training_indices.copy()
     # Only leave out MILES
-    miles = spi.training_labels['miles_id'] != 'c3k'
+    miles = psi.training_labels['miles_id'] != 'c3k'
     loo_indices = loo_indices[miles]
     # Now do the leave out, with or without retraining
-    spi, predicted, inhull = leave_one_out(spi, loo_indices, **kwargs)
+    psi, predicted, inhull = leave_one_out(psi, loo_indices, **kwargs)
 
     print('time to retrain {} models: {:.1f}s'.format(len(loo_indices), time.time()-ts))
 
     # --- Useful arrays and Stats ---
 
-    labels = spi.library_labels[loo_indices]
+    labels = psi.library_labels[loo_indices]
     # Keep track of whether MILES stars in padded region
     inbounds = within_bounds(bounds[regime], labels)
-    wave = spi.wavelengths.copy()
-    observed = spi.library_spectra[loo_indices, :]
-    obs_unc = observed / spi.library_snr[loo_indices, :]
+    wave = psi.wavelengths.copy()
+    observed = psi.library_spectra[loo_indices, :]
+    obs_unc = observed / psi.library_snr[loo_indices, :]
     snr = observed / obs_unc
     bias, variance, chisq = get_stats(wave, observed[inbounds,:],
                                       predicted[inbounds,:], snr[inbounds,:], **kwargs)
@@ -126,8 +126,8 @@ def loo(regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
 
     # --- Write output ---
 
-    spi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
-    write_results(outroot, spi, bounds[regime],
+    psi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
+    write_results(outroot, psi, bounds[regime],
                   wave, predicted, observed, obs_unc, labels, **kwargs)
 
     # --- Make Plots ---
@@ -155,10 +155,10 @@ def loo(regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
 
     print('finished training and plotting in {:.1f}'.format(time.time()-ts))
 
-    return spi, loo_indices, predicted
+    return psi, loo_indices, predicted
 
 
-def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels, **extras):
+def write_results(outroot, psi, bounds, wave, pred, obs, unc, labels, **extras):
     import json
     with h5py.File('{}_results.h5'.format(outroot), 'w') as f:
         w = f.create_dataset('wavelengths', data=wave)
@@ -166,11 +166,11 @@ def write_results(outroot, spi, bounds, wave, pred, obs, unc, labels, **extras):
         p = f.create_dataset('predicted', data=pred)
         u = f.create_dataset('uncertainty', data=unc)
         l = f.create_dataset('parameters', data=labels)
-        f.attrs['terms'] = json.dumps(spi.features)
+        f.attrs['terms'] = json.dumps(psi.features)
         f.attrs['bounds'] = json.dumps(bounds)
         f.attrs['options'] = json.dumps(extras)
-        c = f.create_dataset('coefficients', data=spi.coeffs)
-        r = f.create_dataset('reference_spectrum', data=spi.reference_spectrum)
+        c = f.create_dataset('coefficients', data=psi.coeffs)
+        r = f.create_dataset('reference_spectrum', data=psi.reference_spectrum)
 
 
 def run_matrix(**run_params):
@@ -205,7 +205,7 @@ if __name__ == "__main__":
 
     if test:
         print('Test mode')
-        spi, inds, pred = loo(regime='Warm Dwarfs', c3k_weight=1e-3, fake_weights=False,
+        psi, inds, pred = loo(regime='Warm Dwarfs', c3k_weight=1e-3, fake_weights=False,
                               outroot='test', **run_params)
     else:
         run_matrix(**run_params)

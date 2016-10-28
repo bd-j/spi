@@ -8,10 +8,10 @@ from .utils import *
 from .trainingset import TrainingSet
 
 
-__all__ = ["PSIModel", "SimplePSIModel", "FastPSIModel"]
+__all__ = ["SPIModel", "SimpleSPIModel", "FastSPIModel"]
 
 
-class PSIModel(TrainingSet):
+class SPIModel(TrainingSet):
 
     def __init__(self, unweighted=True, logify_flux=False, **kwargs):
         self.unweighted = unweighted
@@ -192,8 +192,8 @@ class PSIModel(TrainingSet):
         return len(self.features) + 1
         
 
-class SimplePSIModel(PSIModel):
-    """A simpler version of PSIModel that overrides the ``labels_to_features``,
+class SimpleSPIModel(SPIModel):
+    """A simpler version of SPIModel that overrides the ``labels_to_features``,
     ``rescale``, ``configure_features``, and ``build_training_info`` methods to
     be simpler and more expressive.  In this model labels and features can be
     accessed and created by name, instead of needing to have properly ordered
@@ -215,7 +215,7 @@ class SimplePSIModel(PSIModel):
         """Construct a feature vector from a label structure. This uses
         features that are named by hand, and specified in the ``features``
         attribute as a tuple of lists.  This method is slower than the
-        ``einsum`` based method of FastPSIModel, but allows for more flexibility
+        ``einsum`` based method of FastSPIModel, but allows for more flexibility
         and interpretability.
 
         :param labels:
@@ -263,7 +263,7 @@ class SimplePSIModel(PSIModel):
             return []
 
 
-class FastPSIModel(PSIModel):
+class FastSPIModel(SPIModel):
 
     def configure_features(self, **extras):
         """Here you set up which terms to use.  This is set up to include all
