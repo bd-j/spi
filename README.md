@@ -1,4 +1,4 @@
-SPI: Spectrum Polynomial Interpolations
+SPI: Spectrum Polynomial Interpolations<sup>[*](#footnote) </sup>
 ========
 
 Doing the basic regression thing.
@@ -26,5 +26,8 @@ References:
 * Wu, Y., Singh, H. P., Prugniel, P., Gupta, R., & Koleva, M. 2011, A&A, 525, A71
 * Prugniel, P., Vauglin, I., & Koleva, M., 2011, A&A, 531, A165
 * Ness, M., Hogg, D. W., Rix, H.-W., Ho, A. Y. Q., & Zasowski, G. 2015, ApJ, 808, 16
-* Sharma, K., Prugniel, P., & Singh, H. P. 2016, A&A, 585, A64 
+* Sharma, K., Prugniel, P., & Singh, H. P. 2016, A&A, 585, A64
 * Rix, H.-W., Ting, Y.-S., Conroy, C. & Hogg, D. W. 2016
+
+
+<a name="footnote">*</a> More precisely, approximations rather than interpolations.  But SPI sounds cooler than SPA.

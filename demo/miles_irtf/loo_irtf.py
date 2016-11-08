@@ -18,7 +18,7 @@ def reselect(psi, mlib, bad_ids, bounds, normwave=1.0):
     return psi
 
 # The PSI Model
-mlib = '/Users/bjohnson/Projects/psi/data/irtf/irtf_prugniel_extended.h5'
+mlib = '/Users/bjohnson/Projects/spi/data/irtf/irtf_prugniel_extended.h5'
 fgk_bounds = {'teff': (4200.0, 9000.0)}
 psi = MILESInterpolator(training_data=mlib)
 badstar_ids = np.array(allbadstars.tolist())

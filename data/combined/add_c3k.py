@@ -204,8 +204,8 @@ if __name__ == "__main__":
         
     #clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
     clibname = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
-    #mlibname = '/Users/bjohnson/Projects/psi/data/combined/with_mdwarfs_culled_lib_snr_cut.h5'
-    mlibname = '/Users/bjohnson/Projects/psi/data/combined/culled_libv3_w_conv_mdwarfs_w_unc_tc.h5'
+    #mlibname = '/Users/bjohnson/Projects/spi/data/combined/with_mdwarfs_culled_lib_snr_cut.h5'
+    mlibname = '/Users/bjohnson/Projects/spi/data/combined/culled_libv3_w_conv_mdwarfs_w_unc_tc.h5'
     #clib = h5py.File(clibname, 'r')
     #mlib = h5py.File(mlibname, 'r')
 

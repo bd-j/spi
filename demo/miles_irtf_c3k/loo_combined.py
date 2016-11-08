@@ -198,7 +198,7 @@ if __name__ == "__main__":
                   'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
                   'snr_max': 300,
                   'mask_mann': False,
-                  'mlib': '/Users/bjohnson/Projects/psi/data/combined/culled_libv5_w_mdwarfs_w_unc_w_allc3k.h5',
+                  'mlib': '/Users/bjohnson/Projects/spi/data/combined/culled_libv5_w_mdwarfs_w_unc_w_allc3k.h5',
                   'snr_threshold': 1e-10,
                   'nbox': -1,
                   }

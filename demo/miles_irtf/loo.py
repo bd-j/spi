@@ -8,7 +8,7 @@ import time
 ts = time.time()
 
 # The PSI Model
-mlib = '/Users/bjohnson/Projects/psi/data/miles/miles_prugniel.h5'
+mlib = '/Users/bjohnson/Projects/spi/data/miles/miles_prugniel.h5'
 fgk_bounds = {'teff': (4200.0, 9000.0)}
 badstar_ids = np.array(allbadstars.tolist())
 
