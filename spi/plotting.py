@@ -190,15 +190,75 @@ def quality_map(labels, quality, quality_label, add_offsets=0.0, **extras):
     return mapfig, mapaxes              
 
 
-def flux_teff(psi, nt=500, nw=5):
+def plot_best_worst(psi, libindices, predicted, metric, nshow=5):
+    # Plot the n worst and n best
+    nshow = 5
+    oo = np.argsort(metric)
+    props = dict(boxstyle='round', facecolor='w', alpha=0.5)
+
+    bestfig, bestax = pl.subplots(nshow, 2, sharex=True)
+    for i, j in enumerate(oo[:nshow]):
+        k = libindices[j]
+        tlab = dict_struct(psi.library_labels[k])
+        tlab = 'logT={logt:4.3f}, [Fe/H]={feh:3.1f}, logg={logg:3.2f}'.format(**tlab)
+        ax = bestax[i, 0]
+        ax.plot(psi.wavelengths, predicted[j, :])
+        ax.plot(psi.wavelengths, psi.library_spectra[k, :])
+        ax.text(0.1, 0.05, tlab, transform=ax.transAxes, verticalalignment='top', bbox=props)
+        bestax[i,1].plot(psi.wavelengths, (predicted[j,:] / psi.library_spectra[k, :] - 1)*100)
+
+    worstfig, worstax = pl.subplots(nshow, 2, sharex=True)
+    for i, j in enumerate(oo[-nshow:]):
+        k = libindices[j]
+        tlab = dict_struct(psi.library_labels[k])
+        tlab = 'logT={logt:4.3f}, [Fe/H]={feh:3.1f}, logg={logg:3.2f}'.format(**tlab)
+        ax = worstax[i, 0]
+        ax.plot(psi.wavelengths, predicted[j, :])
+        ax.plot(psi.wavelengths, psi.library_spectra[k, :])
+        ax.text(0.1, 0.05, tlab, transform=ax.transAxes, verticalalignment='bottom', bbox=props)
+        worstax[i,1].plot(psi.wavelengths, (predicted[j,:] / psi.library_spectra[k, :] - 1) * 100)
+
+    return bestfig, worstfig
+
+
+def flux_teff(psi, nt=500, nw=5, showgrid=False):
     fig, ax = pl.subplots()
-    clrs = pl.rcParams['axes.color_cycle']
+    #clrs = pl.rcParams['axes.color_cycle']
     logg = np.zeros(nt) + np.median(psi.training_labels['logg'])
     feh = np.zeros(nt) + np.median(psi.training_labels['feh'])
     logt = np.linspace(psi.training_labels['logt'].min(), psi.training_labels['logt'].max(), nt)
     spec, covered = psi.get_star_spectrum(logt=logt, logg=logg, feh=feh, check_coverage=True)
     
-    inds = np.linspace(psi.wavelengths.min(), psi.wavelengths.max(), nw+2)[1:-1]
+    inds = (np.linspace(0, len(psi.wavelengths), nw+2)[1:-1]).astype(int)
     for j, i in enumerate(inds):
-        ax.plot(logt, spec[covered, i], 'o', color=clr[j], label='$\lambda={}$'.format(psi.wavelengths[i]))
-        ax.plot(logt, spec[~covered, i], 'o', color=clr[j], mfc=None)
+        ax.plot(logt, spec[covered, i], 'o', label='$\lambda={}$'.format(psi.wavelengths[i]))
+        if covered.sum() < len(covered):
+            ax.plot(logt, spec[~covered, i], 'o', mfc=None)
+
+    if showgrid:
+        feh_grid = np.unique(psi.training_labels["feh"])
+        logg_grid = np.unique(psi.training_labels["logg"])
+        fg = feh_grid[np.argmin(np.abs(feh[0] - feh_grid))]
+        gg = logg_grid[np.argmin(np.abs(logg[0] - logg_grid))]
+        good = (psi.training_labels["feh"] == fg) & (psi.training_labels["logg"] == gg)
+        for j, i in enumerate(inds):
+            ax.plot(psi.training_labels[good]["logt"], psi.training_spectra[good, i], 's')
+
+    return fig, ax
+
+
+def write_results(outroot, psi, bounds, wave, pred, obs, unc, labels, **extras):
+    import json
+    with h5py.File('{}_results.h5'.format(outroot), 'w') as f:
+        w = f.create_dataset('wavelengths', data=wave)
+        o = f.create_dataset('observed', data=obs)
+        p = f.create_dataset('predicted', data=pred)
+        u = f.create_dataset('uncertainty', data=unc)
+        l = f.create_dataset('parameters', data=labels)
+        f.attrs['terms'] = json.dumps(psi.features)
+        f.attrs['bounds'] = json.dumps(bounds)
+        f.attrs['options'] = json.dumps(extras)
+        c = f.create_dataset('coefficients', data=psi.coeffs)
+        r = f.create_dataset('reference_spectrum', data=psi.reference_spectrum)
+
+

@@ -8,7 +8,7 @@ import h5py
 from combined_model import CombinedInterpolator
 from spi.comparison_models import PiecewiseC3K
 from spi.utils import dict_struct, within_bounds
-from spi.plotting import get_stats, quality_map, bias_variance, specpages
+from spi.plotting import get_stats, quality_map, bias_variance, specpages, write_results
 
 from combined_params import bounds, features, pad_bounds
 
@@ -156,21 +156,6 @@ def loo(regime='Warm Giants', outroot=None, nbox=-1, plotspec=True, **kwargs):
     print('finished training and plotting in {:.1f}'.format(time.time()-ts))
 
     return psi, loo_indices, predicted
-
-
-def write_results(outroot, psi, bounds, wave, pred, obs, unc, labels, **extras):
-    import json
-    with h5py.File('{}_results.h5'.format(outroot), 'w') as f:
-        w = f.create_dataset('wavelengths', data=wave)
-        o = f.create_dataset('observed', data=obs)
-        p = f.create_dataset('predicted', data=pred)
-        u = f.create_dataset('uncertainty', data=unc)
-        l = f.create_dataset('parameters', data=labels)
-        f.attrs['terms'] = json.dumps(psi.features)
-        f.attrs['bounds'] = json.dumps(bounds)
-        f.attrs['options'] = json.dumps(extras)
-        c = f.create_dataset('coefficients', data=psi.coeffs)
-        r = f.create_dataset('reference_spectrum', data=psi.reference_spectrum)
 
 
 def run_matrix(**run_params):

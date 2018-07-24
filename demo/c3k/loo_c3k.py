@@ -5,7 +5,7 @@ import matplotlib.pyplot as pl
 
 from spi.library_models import CKCInterpolator
 from spi.utils import dict_struct, within_bounds
-from spi.plotting import get_stats, quality_map, bias_variance, specpages
+from spi.plotting import get_stats, quality_map, bias_variance, specpages, write_results
 
 from c3k_regimes import bounds, features, pad_bounds
 
@@ -20,14 +20,6 @@ showlines = {'CaT': (8450, 8700),
 
 
 # The SPI Model
-regime = 'Warm Giants'
-mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/ckc_R10k.h5'
-#mlib = '/Users/bjohnson/Codes/SPS/ckc/ckc/lores/irtf/ckc14_irtf.flat.h5'
-psi = CKCInterpolator(training_data=mlib, logify_flux=True)
-psi.delete_masked()
-psi.features = features[regime]
-psi.select(bounds=pad_bounds(bounds[regime]))
-
 
 def leave_one_out(psi, loo_indices, retrain=True, **extras):
     """ --- Leave-one-out ----
@@ -56,7 +48,44 @@ def leave_one_out(psi, loo_indices, retrain=True, **extras):
     return psi, predicted, inhull
 
 
-if __name__ == "__main__":
+
+def get_interpolator(mlib='', regime='', snr=100,
+                     padding=True, **kwargs):
+    """
+    """
+    # --- The PSI Model ---
+    # spectra are normalized by bolometric luminosity
+    psi = CKCInterpolator(training_data=mlib, logify_flux=True)
+    #psi.renormalize_library_spectra(bylabel='luminosity')
+    # Add library_snr?
+    if snr is not None:
+        psi.library_snr = np.ones_like(psi.library_spectra) * snr
+    # Choose parameter regime and features
+    if padding:
+        b = pad_bounds(bounds[regime], **kwargs)
+    else:
+        b = bounds[regime]
+    psi.restrict_sample(bounds=b)
+    psi.features = features[regime]
+    return psi
+
+
+def loo(regime='Warm Giants', mlib='/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/ckc_R10k.h5',
+        snr=100, outroot=None, **kwargs):
+
+
+    if outroot is None:
+        pdict= {'regime': regime.replace(' ','_'),
+                'snr': snr,
+                'mlib': os.path.basename(mlib).replace('.h5', '')}
+        outroot = '{mlib}_{regime}_snr{snr}'.format(**pdict)
+
+    psi = get_interpolator(mlib, regime, snr=snr, **kwargs)
+
+    # --- Run leave one out on (almost) everything ---
+    loo_indices = psi.training_indices.copy()[::3]
+    psi, predicted, inhull = leave_one_out(psi, loo_indices, **kwargs)
+
 
     outroot = 'figures/test'
     plotspec = True
@@ -76,35 +105,24 @@ if __name__ == "__main__":
         axes[0].plot(psi.wavelengths, specsun)
         axes[1].plot(psi.wavelengths, specsun / psi.training_spectra[solar,:][0])
         pl.show()
-        
-    #sys.exit()
 
-    # --- Run leave one out on (almost) everything ---
-    loo_indices = psi.training_indices.copy()[::3]
-    psi, predicted, inhull = leave_one_out(psi, loo_indices, retrain=False)
 
     # --- Useful arrays and Stats ---
     labels = psi.library_labels[loo_indices]
-    # Keep track of whether MILES stars in padded region
-    #inbounds = within_bounds(bounds[regime], labels)
-    inbounds = inhull #slice(None)
+    # Keep track of whether star is in padded region
+    inbounds = inhull # | slice(None)
     wave = psi.wavelengths.copy()
     observed = psi.library_spectra[loo_indices, :]
-    obs_unc = np.zeros_like(observed)
-    snr = 100.0
+    uncertainty = observed / snr
     wmin, wmax = 0, 4e4
-    bias, variance, chisq = get_stats(wave, observed[inbounds, :],
-                                      predicted[inbounds, :], snr,
-                                      wmin=wmin, wmax=wmax)
+    bias, variance, chisq = get_stats(wave, observed[inbounds, :], predicted[inbounds, :],
+                                      snr, wmin=wmin, wmax=wmax)
     sigma = np.sqrt(variance)
 
     # --- Write output ---
     psi.dump_coeffs_ascii('{}_coeffs.dat'.format(outroot))
-    #write_results(outroot, psi, fgk_bounds,
-    #              wave, predicted, observed, obs_unc, labels, **kwargs)
 
     # --- Make Plots ---
-
     # Plot the bias and variance spectrum
     sfig, sax = bias_variance(wave, bias, sigma, qlabel='\chi')
     sax.set_ylim(max(-100, min(-1, np.nanmin(sigma[100:-100]), np.nanmin(bias[100:-100]))),
@@ -120,46 +138,45 @@ if __name__ == "__main__":
         tistring = "logt={logt:4.0f}, logg={logg:3.2f}, feh={feh:3.2f}, In hull={inhull}"
         # plot full SED
         filename = '{}_sed.pdf'.format(outroot)
-        fstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
+        fstat = specpages(filename, wave, predicted, observed, uncertainty, labels,
                           c3k_model=None, inbounds=inbounds, inhull=inhull,
                           showlines={'Full SED': (0.37, 2.5)}, show_native=False,
                           tistring=tistring)
         # plot zoom-ins around individual lines
         filename = '{}_lines.pdf'.format(outroot)
-        lstat = specpages(filename, wave, predicted, observed, obs_unc, labels,
+        lstat = specpages(filename, wave, predicted, observed, uncertainty, labels,
                           c3k_model=None, inbounds=inbounds, inhull=inhull,
                           showlines=showlines, show_native=True,
                           tistring=tistring)
 
     print('finished training and plotting in {:.1f}'.format(time.time()-ts))
 
-    
-    # Plot the n worst and n best
-    nshow = 5
-    sorted_inds = loo_indices[np.argsort(chisq[loo_indices])]
-    props = dict(boxstyle='round', facecolor='w', alpha=0.5)
+    best, worst = plot_best_worst(psi, loo_indices[inbounds],
+                                  predicted[inbounds, :], chisq, nshow=5)
 
-    bestfig, bestax = pl.subplots(nshow, 2, sharex=True)
-    for i, j in enumerate(sorted_inds[:nshow]):
-        tlab = dict_struct(psi.training_labels[j])
-        tlab = 'logT={logt:4.3f}, [Fe/H]={feh:3.1f}, logg={logg:3.2f}'.format(**tlab)
-        ax = bestax[i, 0]
-        ax.plot(psi.wavelengths, predicted[j, :])
-        ax.plot(psi.wavelengths, psi.training_spectra[j, :])
-        ax.text(0.1, 0.05, tlab, transform=ax.transAxes, verticalalignment='top', bbox=props)
-        bestax[i,1].plot(psi.wavelengths, (predicted[j,:]/psi.training_spectra[j, :] - 1)*100)
-
-    worstfig, worstax = pl.subplots(nshow, 2, sharex=True)
-    for i, j in enumerate(sorted_inds[-nshow:]):
-        tlab = dict_struct(psi.training_labels[j])
-        tlab = 'logT={logt:4.3f}, [Fe/H]={feh:3.1f}, logg={logg:3.2f}'.format(**tlab)
-        ax = worstax[i, 0]
-        ax.plot(psi.wavelengths, predicted[j, :])
-        ax.plot(psi.wavelengths, psi.training_spectra[j, :])
-        ax.text(0.1, 0.05, tlab, transform=ax.transAxes, verticalalignment='bottom', bbox=props)
-        worstax[i,1].plot(psi.wavelengths, (predicted[j,:]/psi.training_spectra[j, :] - 1)*100)
-
-    bestfig.show()
-    worstfig.show()
+    best.show()
+    worst.show()
 
     sys.exit()
+
+
+if __name__ == "__main__":
+
+    try:
+        test = sys.argv[1] == 'test'
+    except(IndexError):
+        test = False
+
+    run_params = {'retrain': True,
+                  'padding': True,
+                  'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
+                  'snr': 100,
+                  'mlib': '/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/irtf/ckc14_irtf.flat.h5',
+                  'nbox': -1,
+                  }
+
+    if test:
+        print('Test mode')
+        psi, inds, pred = loo(regime='Warm Dwarfs', outroot='test', **run_params)
+    else:
+        run_matrix(**run_params)

@@ -56,7 +56,7 @@ class MILESInterpolator(SimpleSPIModel):
 
 class CKCInterpolator(SimpleSPIModel):
 
-    def load_training_data(self, training_data='', **extras):
+    def load_training_data(self, training_data='', renormalize_spec=True, **extras):
         """Read an HDF5 file with `parameters` a structured ndarray and
         `spectra` an ndarray.  Convert to a structured array of labels of
         length `ntrain` with `nlabel` fields. and an ndarray of training
@@ -69,23 +69,30 @@ class CKCInterpolator(SimpleSPIModel):
             self.library_labels = f['parameters'][:]
             self.wavelengths = f['wavelengths'][:]
 
-        # renormalize spectra to Lbol = 1 L_sun
-        try:
-            # Renormalize so that all stars have logl=0
-            # The native unit of the C3K library is erg/s/cm^2/Hz/sr.
-            # We need to multply by 4pi (for the sr) and then by a radius
-            # (squared) that gets us to logL=0
-            # We can work out this radius from logL=log(4pi\sigma_SB) + 2logR + 4logT
-            logl, log4pi = 0.0, np.log10(4 * np.pi)
-            # This is in cm
-            twologR = (logl+log_lsun_cgs) - 4 * self.library_labels['logt'] - log_SB_cgs - log4pi
+        # Deal with oldstyle files that only have Z, not feh
+        if 'Z' in self.library_labels.dtype.names:
+            newcols = ['feh']
+            newdata = [np.log10(self.library_labels['Z']/0.0134)]
+            labels = rfn.append_fields(self.library_labels, newcols, newdata, usemask=False)
+            self.library_labels = labels
 
-            # Now multiply by 4piR^2, with another 4pi for the solid angle
-            self.library_spectra *= 10**(twologR[:, None] + 2 * log4pi)
-            #self.spectral_units = 'erg/s/Hz/solar luminosity'
+        if renormalize_spec:
+            # renormalize spectra to Lbol = 1 L_sun
+            try:
+                # Renormalize so that all stars have logl=0
+                # The native unit of the C3K library is erg/s/cm^2/Hz/sr.  We
+                # need to multply by 4pi (for the sr) and then by a radius
+                # (squared) that gets us to logL=0 We can work out this radius
+                # from logL=log(4pi\sigma_SB) + 2logR + 4logT
+                logl, log4pi = 0.0, np.log10(4 * np.pi)
+                # This is in cm
+                twologR = (logl+log_lsun_cgs) - 4 * self.library_labels['logt'] - log_SB_cgs - log4pi
 
-        except:
-            print('Did not renormalize spectra by luminosity.')
+                # Now multiply by 4piR^2, with another 4pi for the solid angle
+                self.library_spectra *= 10**(twologR[:, None] + 2 * log4pi)
+                #self.spectral_units = 'erg/s/Hz/solar luminosity'
+            except:
+                print('Did not renormalize spectra by luminosity.')
 
         self.reset_mask()
         # remove zero spectra
