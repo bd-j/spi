@@ -135,13 +135,14 @@ class SPIModel(TrainingSet):
         """Weighted least-squares.  Vectorized to work simultaneously on large
         numbers of wavelengths
         """
-        ww = weights.T
-        wx = ww[:, :, None] * self.X
+        ww = weights.T # nwave x ntrain
+        wx = ww[:, :, None] * self.X # nwave x ntrain x nfeature
 
-        B = np.dot(self.X.T, weights * spec).T #nwave x nfeature
+        b = np.dot(self.X.T, weights * spec).T # nwave x nfeature
         # This is the time suck
-        A = np.dot(self.X.T, wx).transpose(1,0,2) #nwave x nfeature x nfeature
-        return np.linalg.solve(A, B).T
+        a = np.matmul(self.X.T, wx) # nwave x nfeature x nfeature
+        #a = np.dot(self.X.T, wx).transpose(1,0,2)
+        return np.linalg.solve(a, b).T
 
     def get_star_spectrum(self, check_coverage=False, **kwargs):
         """Get an interpolated spectrum at the parameter values (labels)

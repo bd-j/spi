@@ -76,6 +76,12 @@ class CKCInterpolator(SimpleSPIModel):
             labels = rfn.append_fields(self.library_labels, newcols, newdata, usemask=False)
             self.library_labels = labels
 
+        self.reset_mask()
+        # remove zero spectra
+        bad = np.where(np.max(self.library_spectra, axis=-1) <= 1e-33)
+        if len(bad[0]) > 0:
+            self.leave_out(bad[0])
+
         if renormalize_spec:
             # renormalize spectra to Lbol = 1 L_sun
             try:
@@ -93,12 +99,6 @@ class CKCInterpolator(SimpleSPIModel):
                 #self.spectral_units = 'erg/s/Hz/solar luminosity'
             except:
                 print('Did not renormalize spectra by luminosity.')
-
-        self.reset_mask()
-        # remove zero spectra
-        bad = np.where(np.max(self.library_spectra, axis=-1) <= 1e-33)
-        if len(bad[0]) > 0:
-            self.leave_out(bad[0])
         
     def build_training_info(self):
         self.reference_index = None

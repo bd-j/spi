@@ -152,7 +152,7 @@ def zoom_lines(wave, predicted, observed, uncertainties=None,
 
         
 def bias_variance(wave, bias, sigma, qlabel='\chi'):
-    colors = pl.rcParams['axes.color_cycle']
+    colors = [p['color'] for p in pl.rcParams['axes.prop_cycle']]
     sfig, sax = pl.subplots()
     sax.plot(wave, sigma, label='$\sigma_{{{}}}$'.format(qlabel),
              color=colors[0])
@@ -176,9 +176,13 @@ def quality_map(labels, quality, quality_label, add_offsets=0.0, **extras):
 
     
     rr = add_offsets * np.random.uniform(0, 1, size=len(lab))
+    unit_coord = dict([(l, labels[l] / ranges[l]) for l in ["logt", "logg", "feh"]])
+
+    rr = add_offsets * unit_coord[l3]
     sc = mapaxes[0].scatter(lab[l1] + rr*ranges[l1], lab[l2] + rr*ranges[l2], marker='o', c=varc)
     mapaxes[0].set_xlabel(l1)
     mapaxes[0].set_ylabel(l2)
+    rr = add_offsets * unit_coord[l2]
     sc = mapaxes[1].scatter(lab[l1] + rr*ranges[l1], lab[l3] + rr*ranges[l3], marker='o', c=varc)
     mapaxes[1].set_xlabel(l1)
     mapaxes[1].set_ylabel(l3)
@@ -223,7 +227,7 @@ def plot_best_worst(psi, libindices, predicted, metric, nshow=5):
 
 def flux_teff(psi, nt=500, nw=5, showgrid=False):
     fig, ax = pl.subplots()
-    #clrs = pl.rcParams['axes.color_cycle']
+    #clrs = [p['color'] for p in pl.rcParams['axes.prop_cycle']]
     logg = np.zeros(nt) + np.median(psi.training_labels['logg'])
     feh = np.zeros(nt) + np.median(psi.training_labels['feh'])
     logt = np.linspace(psi.training_labels['logt'].min(), psi.training_labels['logt'].max(), nt)
@@ -245,6 +249,85 @@ def flux_teff(psi, nt=500, nw=5, showgrid=False):
             ax.plot(psi.training_labels[good]["logt"], psi.training_spectra[good, i], 's')
 
     return fig, ax
+
+
+def show_fit_slice(psi, param, n=500, nw=5, waves=None, showgrid=True, **kwargs):
+    """
+    :param psi: A trained interpolator
+
+    :param param:
+        The name of the parameter forming the slice.  
+        One of "logt" | "logg" | "feh"
+
+    :param n: number of points along the slice
+
+    :param nw: number of wavelength points to show
+
+    :param showgrid:
+        If True, show the grid on top of the predictions. 
+        Only works if the training set is actually a grid.
+
+    :param kwargs: (optional)
+        Can specify desired values for the non-'param' parameters, as
+        e.g. logg=4.5.  If not given, the median of the training set will be
+        used.
+    """
+
+    parnames = ["logt", "logg", "feh"]
+
+    pars = {}
+    for p in parnames:
+        if p == param:
+            value = np.linspace(psi.training_labels[p].min(), psi.training_labels[p].max(), n)
+        elif p in kwargs:
+            print(kwargs[p])
+            value = np.zeros(n) + kwargs[p]
+        else:
+            value = np.zeros(n) + np.median(psi.training_labels[p])
+        pars[p] = value
+
+    # get predicted spectra along the parameter slice
+    spec, covered = psi.get_star_spectrum(check_coverage=True, **pars)
+
+    # plot flux_i versus param
+    fig, ax = pl.subplots()
+    cmap = pl.cm.get_cmap("viridis")
+
+    if waves is None:
+        inds = (np.linspace(0, len(psi.wavelengths), nw+2)[1:-1]).astype(int)
+    else:
+        inds = np.array([np.argmin(np.abs(w - psi.wavelengths)) for w in waves])
+
+    cinds = (inds - inds.min()) * 1.0 / (inds.max() - inds.min())
+    for j, i in enumerate(inds):
+        ax.plot(pars[param], spec[covered, i], 'o',
+                color=cmap(cinds[j]), label='$\lambda={}$'.format(psi.wavelengths[i]))
+        if covered.sum() < len(covered):
+            ax.plot(pars[param], spec[~covered, i], 'o', mfc=None, mec=cmap(cinds[j]))
+
+    t = ["{}={:4.3f}".format(p, pars[p][0]) for p in parnames if p != param]
+    t = ", ".join(t)
+    ax.set_title(t)
+    ax.set_xlabel(param)
+
+    if showgrid:
+        grid = {}
+        sel = np.ones(len(psi.training_labels), dtype=bool)
+        for p in parnames:
+            if p != param:
+                gridpoints = np.unique(psi.training_labels[p])
+                grid_closest = gridpoints[np.argmin(np.abs(pars[p][0] - gridpoints))]
+                grid[p] = grid_closest
+                sel = sel & (psi.training_labels[p] == grid_closest)
+
+        tg = ["{}={:4.3f}".format(p, grid[p]) for p in grid.keys()]
+        tg = ", ".join(tg)
+        for j, i in enumerate(inds):
+            ax.plot(psi.training_labels[sel][param], psi.training_spectra[sel, i], 's',
+                    markerfacecolor=cmap(cinds[j]), markeredgecolor="k", markeredgewidth=1)
+        ax.set_title(t + "; " + tg)
+
+    return fig, ax, psi.wavelengths[inds]
 
 
 def write_results(outroot, psi, bounds, wave, pred, obs, unc, labels, **extras):
