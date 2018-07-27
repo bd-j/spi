@@ -49,13 +49,16 @@ def leave_one_out(psi, loo_indices, retrain=True, **extras):
     return psi, predicted, inhull
 
 
-def get_interpolator(mlib='', regime='', snr=None,
-                     padding=True, **kwargs):
+def get_interpolator(mlib='', regime='', snr=None, padding=True,
+                     continuum_normalize=False, wlo=0, whi=np.inf,
+                     **kwargs):
     """
     """
     # --- The PSI Model ---
     # spectra are normalized by bolometric luminosity
-    psi = CKCInterpolator(training_data=mlib, logify_flux=True)
+    psi = CKCInterpolator(training_data=mlib, logify_flux=True,
+                          continuum_normalize=continuum_normalize,
+                          wlo=wlo, whi=whi)
     #psi.renormalize_library_spectra(bylabel='luminosity')
     # Add library_snr?
     if snr is not None:
@@ -191,14 +194,27 @@ if __name__ == "__main__":
     except(IndexError):
         test = False
 
-    run_params = {'retrain': True,
-                  'padding': True,
-                  'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
-                  'snr': None,
-                  'mlib': '/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/irtf/ckc14_irtf.flat.h5',
-                  'nbox': -1,
-                  }
+    run_params_f = {'retrain': True,
+                    'padding': True,
+                    'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
+                    'snr': None,
+                    'mlib': '/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/irtf/ckc14_irtf.flat.h5',
+                    'nbox': -1,
+                    }
 
+    run_params_cn = {'retrain': True,
+                    'padding': True,
+                    'tpad': 500.0, 'gpad': 0.0, 'zpad': 0.1,
+                    'snr': None,
+                    'mlib': '/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/c3k_v1.3_R5K.h5',
+                    "continuum_normalize": True,
+                    'wlo': 2500.,
+                    'whi': 1e4,
+                    'nbox': -1,
+                    }
+
+    run_params = run_params_cn
+        
     if test:
         print('Test mode')
         psi, inds, pred = loo(regime='Warm Dwarfs', outroot='test', plotspec=False, **run_params)

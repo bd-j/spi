@@ -18,8 +18,8 @@ def pad_bounds(inbounds, tpad=500., gpad=0.5, zpad=0.1, **extras):
 # Warm Dwarfs
 # 4000 < Teff <= 6500, logg > 3.5
 bounds['Warm Dwarfs'] = {'logt': (np.log10(4000.0), np.log10(6300)),
-                         'logg': (3.49, 5.5),
-                         'feh': (-2.01, 0.51)}
+                         'logg': (3.49, 5.49),
+                         'feh': (-2.01, 0.26)}
 
 features['Warm Dwarfs'] = (['logt'],
                            ['feh'],
@@ -63,12 +63,12 @@ features['Warm Dwarfs'] = (['logt'],
                            ['logt', 'feh', 'logg', 'logg'],
                            # Quintic
                            ['logt', 'logt', 'logt', 'logt', 'logt'],
-                           #['logt', 'logt', 'logg', 'logg', 'logg'],
-                           #['feh', 'feh', 'logg', 'logg', 'logg'],
-                           #['logt', 'logt', 'logt', 'feh', 'feh'],
-                           #['logt', 'logt', 'logt', 'logg', 'logg', 'logg'],
-                           #['logt', 'logt', 'logt', 'feh', 'feh', 'feh'],
-                           #['logt', 'logt', 'logt', 'logt', 'logt', 'logt']
+                           ['logt', 'logt', 'logg', 'logg', 'logg'],
+                           ['feh', 'feh', 'logg', 'logg', 'logg'],
+                           ['logt', 'logt', 'logt', 'feh', 'feh'],
+                           ['logt', 'logt', 'logt', 'logg', 'logg', 'logg'],
+                           ['logt', 'logt', 'logt', 'feh', 'feh', 'feh'],
+                           ['logt', 'logt', 'logt', 'logt', 'logt', 'logt']
                            )
 
 

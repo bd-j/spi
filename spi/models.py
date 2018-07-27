@@ -148,7 +148,7 @@ class SPIModel(TrainingSet):
         """Get an interpolated spectrum at the parameter values (labels)
         specified as keywords.
         """
-        assert True in self.trained
+        assert True in self.trained, "Not trained yet!"
         labels = make_struct(**kwargs)
         features = self.labels_to_features(labels)
         spectrum = np.dot(self.coeffs, features.T)

@@ -56,7 +56,8 @@ class MILESInterpolator(SimpleSPIModel):
 
 class CKCInterpolator(SimpleSPIModel):
 
-    def load_training_data(self, training_data='', renormalize_spec=True, **extras):
+    def load_training_data(self, training_data='', renormalize_spec=True,
+                           continuum_normalize=False, wlo=0, whi=np.inf, **extras):
         """Read an HDF5 file with `parameters` a structured ndarray and
         `spectra` an ndarray.  Convert to a structured array of labels of
         length `ntrain` with `nlabel` fields. and an ndarray of training
@@ -65,9 +66,22 @@ class CKCInterpolator(SimpleSPIModel):
         # Read the HDF5 file
         self.has_errors = False
         with h5py.File(training_data, "r") as f:
-            self.library_spectra = f['spectra'][:]
-            self.library_labels = f['parameters'][:]
+            try:
+                sel = f['parameters']["afe"] == 0
+            except:
+                sel = slice(None)
+                print("getting all spectra")
+            self.library_spectra = f['spectra'][:][sel]
+            self.library_labels = f['parameters'][:][sel]
             self.wavelengths = f['wavelengths'][:]
+            if continuum_normalize:
+                self.library_spectra /= f['continuua'][:][sel]
+
+        # Restrict wavelengh range
+        gw = (self.wavelengths >= wlo) & (self.wavelengths <= whi)
+        if gw.sum() < len(self.wavelengths):
+            self.wavelengths = self.wavelengths[gw]
+            self.library_spectra = self.library_spectra[:, gw]
 
         # Deal with oldstyle files that only have Z, not feh
         if 'Z' in self.library_labels.dtype.names:
@@ -77,12 +91,20 @@ class CKCInterpolator(SimpleSPIModel):
             self.library_labels = labels
 
         self.reset_mask()
+        # remove nan spectra
+        hasnan = np.isnan(self.training_spectra).sum(axis=-1) > 1 # keep spectra where only one pixel is a nan
+        if hasnan.sum() > 0:
+            self.leave_out(np.where(hasnan)[0])
+            self.library_spectra[np.isnan(self.library_spectra)] = -1
         # remove zero spectra
         bad = np.where(np.max(self.library_spectra, axis=-1) <= 1e-33)
         if len(bad[0]) > 0:
             self.leave_out(bad[0])
-
-        if renormalize_spec:
+        # replace negatives with tiny number
+        tiny_number = 1e-30
+        self.library_spectra[self.library_spectra <= 0.0] = tiny_number
+            
+        if renormalize_spec and (not continuum_normalize):
             # renormalize spectra to Lbol = 1 L_sun
             try:
                 # Renormalize so that all stars have logl=0
@@ -102,7 +124,7 @@ class CKCInterpolator(SimpleSPIModel):
         
     def build_training_info(self):
         self.reference_index = None
-        self.reference_spectrum = self.training_spectra.mean(axis=0)
+        self.reference_spectrum = np.median(self.training_spectra, axis=0)
 
         self.label_range = {}
         for l in self.label_names:
