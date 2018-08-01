@@ -303,7 +303,8 @@ def show_fit_slice(psi, param, n=500, nw=5, waves=None, showgrid=True, **kwargs)
         ax.plot(pars[param][covered], spec[covered, i], 'o',
                 color=cmap(cinds[j]), label='$\lambda={}$'.format(psi.wavelengths[i]))
         if covered.sum() < len(covered):
-            ax.plot(pars[param][~covered], spec[~covered, i], 'o', mfc=None, mec=cmap(cinds[j]))
+            ax.plot(pars[param][~covered], spec[~covered, i], 'o',
+                    mfc="None", mew=1,  mec=cmap(cinds[j]))
 
     t = ["{}={:4.3f}".format(p, pars[p][0]) for p in parnames if p != param]
     t = ", ".join(t)

@@ -63,6 +63,8 @@ class CKCInterpolator(SimpleSPIModel):
         length `ntrain` with `nlabel` fields. and an ndarray of training
         spectra of shape (nwave, ntrain).
         """
+
+        self.file_for_training = training_data
         # Read the HDF5 file
         self.has_errors = False
         with h5py.File(training_data, "r") as f:
@@ -103,6 +105,7 @@ class CKCInterpolator(SimpleSPIModel):
         # replace negatives with tiny number
         tiny_number = 1e-30
         self.library_spectra[self.library_spectra <= 0.0] = tiny_number
+        self.delete_masked()
             
         if renormalize_spec and (not continuum_normalize):
             # renormalize spectra to Lbol = 1 L_sun

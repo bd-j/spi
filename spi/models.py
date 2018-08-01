@@ -61,11 +61,16 @@ class SPIModel(TrainingSet):
         """
         raise(NotImplementedError)
 
-    def construct_design_matrix(self, **extras):
+    def construct_design_matrix(self, regularization=None, **extras):
         """Construct and store the [Nobj x Nfeatures] design matrix and its
         [Nfeature x Nfeature] inverse square.
+
+        :param ridge:
+            Add a regularization term along the diagonal.  not implemented
         """
         self.X = self.labels_to_features(self.training_labels)
+        if regularization is not None:
+            raise(NotImplementedError)
         self.Ainv = inv(np.dot(self.X.T, self.X))
 
     def train(self, inds=None, pool=None, reset=True):

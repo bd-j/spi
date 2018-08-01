@@ -51,15 +51,16 @@ def leave_one_out(psi, loo_indices, retrain=True, **extras):
 
 def get_interpolator(mlib='', regime='', snr=None, padding=True,
                      continuum_normalize=False, wlo=0, whi=np.inf,
-                     **kwargs):
+                     psi=None, **kwargs):
+    """ --- The PSI Model ---
     """
-    """
-    # --- The PSI Model ---
     # spectra are normalized by bolometric luminosity
-    psi = CKCInterpolator(training_data=mlib, logify_flux=True,
-                          continuum_normalize=continuum_normalize,
-                          wlo=wlo, whi=whi)
-    #psi.renormalize_library_spectra(bylabel='luminosity')
+    if psi is None:
+        psi = CKCInterpolator(training_data=mlib, logify_flux=True,
+                            continuum_normalize=continuum_normalize,
+                            wlo=wlo, whi=whi)
+    else:
+        psi.reset_mask()
     # Add library_snr?
     if snr is not None:
         psi.library_snr = np.ones_like(psi.library_spectra) * snr
@@ -77,7 +78,8 @@ def get_interpolator(mlib='', regime='', snr=None, padding=True,
 
 def get_useful_arrays(psi, predicted, loo_indices, wmin=1e3, wmax=2e4,
                       snr=None, inbounds=slice(None)):
-    # --- Useful arrays and Stats ---
+    """ --- Useful arrays and Stats ---
+    """
     labels = psi.library_labels[loo_indices]
     wave = psi.wavelengths.copy()
     observed = psi.library_spectra[loo_indices, :]
@@ -92,8 +94,9 @@ def get_useful_arrays(psi, predicted, loo_indices, wmin=1e3, wmax=2e4,
     return labels, wave, observed, uncertainty, bias, sigma, chisq
 
 
-def loo(regime='Warm Giants', mlib='/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/ckc_R10k.h5',
-        snr=100, outroot=None, plotspec=True, **kwargs):
+def loo(regime='Warm Giants', snr=100, outroot=None, plotspec=True,
+        mlib='/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/ckc_R10k.h5',
+        **kwargs):
 
     ts = time.time()
 
@@ -187,16 +190,70 @@ def run_matrix(**run_params):
         _ = loo(regime=regime, outroot=outroot, **run_params)
 
 
+def show_one(psi, labels=None, pred=None, feh=0.0, wave=3000.0):
+
+    if labels is None:
+        labels = psi.training_labels
+    if pred is None:
+        pred = psi.get_star_spectrum(logt=labels["logt"], logg=labels["logg"], feh=labels["feh"])
+
+    wind = np.argmin(np.abs(wave - psi.wavelengths))
+    wout = psi.wavelengths[wind]
+    
+    sel = labels["feh"] == feh
+    fig, axes = pl.subplots(3, 1, sharex=True)
+    cbar = axes[0].scatter(labels["logt"][sel], pred[sel, wind],
+                           c=labels["logg"][sel], marker='o', cmap="viridis")
+    axes[1].scatter(psi.training_labels["logt"][sel], psi.training_spectra[sel, wind],
+                    c=psi.training_labels["logg"][sel], marker='o', cmap="viridis")
+    axes[0].set_ylabel("predicted flux")
+    axes[1].set_ylabel("'observed' flux")
+
+    chi = (psi.training_spectra - pred) / (psi.training_spectra / 100)
+    print("sigma_chi({:5.1f})={:5.1f}".format(wout, chi[:, wind].std()))
+    axes[2].scatter(psi.training_labels["logt"][sel], chi[sel, wind],
+                    c=psi.training_labels["logg"][sel], marker='o', cmap="viridis")
+    axes[2].set_ylabel("\% (obs-pred)")
+    axes[2].set_xlabel("logt")
+    cb = fig.colorbar(cbar, ax=axes, label="logg")
+    fig.suptitle("$\lambda={:5.1f}\AA, Fe/H={:3.2f}$".format(wout, feh))
+
+    return fig, axes
+
+
+def plot_varspec(psi, snr=100):
+    qlabel = "\chi"
+    colors = [p['color'] for p in pl.rcParams['axes.prop_cycle']]
+
+    wave = psi.wavelengths
+    labels = psi.training_labels
+    pred = psi.get_star_spectrum(logt=labels["logt"], logg=labels["logg"], feh=labels["feh"])
+    chi = (pred - psi.training_spectra) / (psi.training_spectra / snr)
+
+    sfig, sax = pl.subplots()
+    sax.plot(wave, chi.std(axis=0), label='$\sigma_{{{}}}$'.format(qlabel),
+             color=colors[0])
+    sax.plot(wave, chi.mean(axis=0), label=r'$\bar{{{}}}$'.format(qlabel),
+             color=colors[1])
+    sax.axhline(1, linestyle=':', color=colors[0])
+    sax.axhline(0, linestyle=':', color=colors[1])
+    sax.set_ylim(-5, 30)
+    sax.set_ylabel('${}$ (predicted - observed)'.format(qlabel))
+    sax.legend(loc=0)
+    return sfig, sax
+    
+
 if __name__ == "__main__":
 
+    mode = 'run'
     try:
-        test = sys.argv[1] == 'test'
+        mode = sys.argv[1]
     except(IndexError):
-        test = False
+        mode = 'run'
 
     run_params_f = {'retrain': True,
                     'padding': True,
-                    'tpad': 500.0, 'gpad': 0.25, 'zpad': 0.1,
+                    'tpad': 0.0, 'gpad': 0.25, 'zpad': 0.1,
                     'snr': None,
                     'mlib': '/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/irtf/ckc14_irtf.flat.h5',
                     'nbox': -1,
@@ -204,7 +261,7 @@ if __name__ == "__main__":
 
     run_params_cn = {'retrain': True,
                     'padding': True,
-                    'tpad': 500.0, 'gpad': 0.0, 'zpad': 0.1,
+                    'tpad': 0.0, 'gpad': 0.0, 'zpad': 0.1,
                     'snr': None,
                     'mlib': '/Users/bjohnson/Codes/SPS/ckc/ckc/spectra/lores/c3k_v1.3_R5K.h5',
                     "continuum_normalize": True,
@@ -214,14 +271,34 @@ if __name__ == "__main__":
                     }
 
     run_params = run_params_cn
+
+    if mode == 'debug':
+        regime = 'Test'
+        wave = 3000.
+
+        psi = get_interpolator(regime=regime, **run_params)
+        psi.train()
+
+        wind = np.argmin(np.abs(wave - psi.wavelengths))
+        for t, s in zip(psi.features, psi.coeffs[wind] / np.sqrt(np.diag(psi.Ainv))):
+            print("{}: {}".format(t, s))
         
-    if test:
+        fig, ax = show_one(psi, feh=0, wave=wave)
+        sfig, sax = plot_varspec(psi)
+        sax.set_title(regime)
+        pl.show()
+        
+        
+    elif mode == 'test':
         print('Test mode')
-        psi, inds, pred = loo(regime='Warm Dwarfs', outroot='test', plotspec=False, **run_params)
+        psi, inds, pred = loo(regime='Test', outroot='test', plotspec=False, **run_params)
         arrays = get_useful_arrays(psi, pred, inds)
         labels, wave, observed, unc, bias, sigma, chisq = arrays
         chi = (pred - observed) / unc
+        fig, ax = show_one(psi, labels=labels, pred=pred)
         #mf, ma = quality_map(labels, np.log10(chisq),'log chisq', add_offsets=0.05)
 
-    else:
+    elif mode == "run":
         run_matrix(**run_params)
+
+
