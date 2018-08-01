@@ -284,6 +284,7 @@ if __name__ == "__main__":
             print("{}: {}".format(t, s))
         
         fig, ax = show_one(psi, feh=0, wave=wave)
+        #fig.set_title(regime + ', ' + ax[-1].get_title())
         sfig, sax = plot_varspec(psi)
         sax.set_title(regime)
         pl.show()

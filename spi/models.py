@@ -11,6 +11,7 @@ from .trainingset import TrainingSet
 __all__ = ["SPIModel", "SimpleSPIModel", "FastSPIModel"]
 
 
+
 class SPIModel(TrainingSet):
 
     def __init__(self, unweighted=True, logify_flux=False, **kwargs):
@@ -198,6 +199,98 @@ class SPIModel(TrainingSet):
         return len(self.features) + 1
         
 
+
+class SKModel(SPIModel):
+
+    """
+    LinearRegression:
+    Ridge(CV): alpha, (alphas)
+    [MultiTask]Lasso(CV): alpha (alphas)
+    [MultiTask]ElasticNet(CV): alpha, l1_ratio (alphas, l1_ratio)
+    BayesianRidge:
+    """
+    
+    def __init__(self, logify_flux=False, fit_intercept=True, model_kwargs={}, **kwargs):
+        self.logify_flux = logify_flux
+        self.fit_intercept = fit_intercept
+        self.configure_features(**kwargs)
+        self.select(**kwargs)
+
+        self.model = model(fit_intercept=self.fit_intercept, **model_kwargs)
+
+    def train(self, inds=None, pool=None, reset=True):
+        """Do the regression for the indicated wavelengths.  This can take a
+        pool object with a ``map`` method to enable parallelization.
+        """
+        if reset:
+            self.reset()
+            self.build_training_info()
+            self.construct_design_matrix()
+        if pool is None:
+            if inds is None:
+                inds = slice(None)
+            self.coeffs[inds,:] = self.train_one_wave(inds).T
+        else:
+            M = pool.map
+            if inds is None:
+                inds = range(self.n_wave)
+            self.coeffs[inds, :] = np.array(M(self.train_one_wave,  inds))
+
+        self.trained[inds] = True
+
+    def train_one_wave(self, ind_wave):
+        """Do the regression for one wavelength.
+        """
+        spec = self.training_spectra[:, ind_wave] / self.reference_spectrum[ind_wave]
+        if self.logify_flux:
+            spec = np.log(spec)
+        self.model.fit(self.X, spec)
+        coeffs = model.coef_
+        if self.fit_intercept:
+            # do something
+            pass
+        return coeffs
+
+    def construct_design_matrix():
+        self.scaler = None
+        X_train = self.labels_to_features(self.training_labels)
+        self.scaler = preprocessing.StandardScaler().fit(X_train)
+        self.X = self.scaler.transform(X_train)
+
+    def configure_features(self, orders=range(1, 5), **extras):
+        from itertools import combinations_with_replacement as cwr
+        all_features = [t for order in orders for t in cwr(['logt', 'logg', 'feh'], order)]
+
+    def labels_to_features(self, labels):
+        if self.fit_intercept:
+            X = []
+        else:
+            X = [np.ones(len(labels))]
+        for feature in self.features:
+            x = np.array([labels[n] for n in feature])
+            X.append(x.prod(axis=0))
+        if self.scaler is None:
+            return np.array(X).T
+        else:
+            return self.scaler.transform(np.array(X).T)
+
+    def get_star_spectrum(self, check_coverage=False, **kwargs):
+        assert True in self.trained, "Not trained yet!"
+        labels = make_struct(**kwargs)
+        features = self.labels_to_features(labels)
+        spectrum = self.intercepts + np.dot(self.coeffs, features.T)
+        if self.logify_flux:
+            # Delogify
+            spectrum = np.exp(spectrum)
+        if check_coverage:
+            is_inside = self.inside_hull(labels)
+            return np.squeeze(spectrum.T * self.reference_spectrum), is_inside
+        return np.squeeze(spectrum.T * self.reference_spectrum)
+
+    def dump_coeffs(self):
+        pass
+
+
 class SimpleSPIModel(SPIModel):
     """A simpler version of SPIModel that overrides the ``labels_to_features``,
     ``rescale``, ``configure_features``, and ``build_training_info`` methods to
@@ -268,6 +361,7 @@ class SimpleSPIModel(SPIModel):
         except(AttributeError):
             return []
 
+        
 
 class FastSPIModel(SPIModel):
 
